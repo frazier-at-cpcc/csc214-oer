@@ -1,0 +1,534 @@
+= Chapter 6: Natural Language Processing & Speech
+
+== Learning Objectives
+
+By the end of this chapter, you will be able to:
+
+. Apply Azure AI Language services to extract structured information from unstructured text.
+. Configure a custom text classification model and a question answering knowledge base.
+. Integrate speech-to-text and text-to-speech capabilities into a chat application.
+. Diagram a multi-service NLP pipeline for a given use case.
+
+== 6.1 Introduction: Making Sense of Unstructured Text
+
+In xref:ch05-advanced-agent-patterns.adoc[Chapter 5], you learned how to connect agents to external services through standardized protocols and frameworks. Those agents are powerful orchestrators, but they depend on specialized services to perform domain-specific tasks. This chapter introduces the first family of those specialized services: Natural Language Processing and Speech.
+
+Consider this scenario. A mid-sized law firm -- Carter, Reeves & Associates -- handles thousands of documents every week. Contracts arrive from corporate clients. Court filings come in from opposing counsel. Internal memoranda circulate between attorneys. Regulatory updates land from government agencies. Each document needs to be read, classified into the correct practice area, and routed to the right attorney. Key entities -- party names, dates, monetary amounts, jurisdictions, case numbers -- must be extracted and entered into the firm's case management system. Associates spend hours searching through prior documents to answer questions about precedent, contract language, and regulatory requirements.
+
+The firm's managing partner wants to modernize this process. She envisions a system that can automatically classify incoming documents by practice area, extract critical entities, and provide a searchable question-and-answer interface so attorneys can ask plain-language questions like "What is the termination clause in the Meridian Technologies contract?" or "Which regulatory filings reference Section 409A compliance?" She also wants attorneys to dictate notes and have them transcribed automatically, and she wants the system to read summaries aloud during hands-free review sessions.
+
+This is not a single-service problem. It requires text analytics to extract entities and detect sentiment in client communications. It requires custom classification to sort documents into firm-specific practice areas that no pre-built model understands. It requires a question answering knowledge base to make the firm's document archive searchable in natural language. And it requires speech services to bridge the gap between voice and text. Each of these capabilities maps to a specific Azure AI service, and the real power emerges when you connect them into a pipeline where the output of one service feeds the input of the next.
+
+This chapter walks through each service individually, then shows you how to compose them into a multi-service NLP pipeline. Here is the roadmap:
+
+* **Section 6.2** covers pre-built text analytics: sentiment analysis, key phrase extraction, named entity recognition, language detection, and linked entity recognition.
+* **Section 6.3** introduces custom text classification for domain-specific needs.
+* **Section 6.4** explores question answering knowledge bases.
+* **Section 6.5** adds speech-to-text and text-to-speech capabilities.
+* **Section 6.6** ties everything together in a multi-service NLP pipeline design.
+* **Sections 6.7 and 6.8** connect the chapter to your hands-on labs and the written assessment.
+
+== 6.2 Azure AI Language: Pre-Built Text Analytics
+
+Azure AI Language provides a suite of pre-built text analytics capabilities that work out of the box -- no training data, no model tuning, no deployment configuration. You send text to the API, and the service returns structured information extracted from that text. For Carter, Reeves & Associates, these pre-built capabilities handle the broad, common tasks: identifying who is mentioned in a contract, detecting the language of a foreign-language filing, and gauging the sentiment of client correspondence.
+
+The Azure AI Language service exposes these capabilities through a unified REST API endpoint. You provision a Language resource in the Azure portal, obtain your endpoint URL and API key, and start making calls. A single API call can request multiple analyses simultaneously -- sentiment, key phrases, and named entities in one round trip -- which reduces latency and simplifies your code.
+
+=== 6.2.1 Sentiment Analysis
+
+**Sentiment analysis** examines text and returns a sentiment label -- positive, negative, neutral, or mixed -- along with confidence scores for each label. The service analyzes sentiment at both the document level and the sentence level, so you can identify which specific sentences drive the overall sentiment.
+
+For the law firm, sentiment analysis is valuable for client communications. When a client sends an email about a contract dispute, the system can flag the message as carrying negative sentiment and route it for priority response. When feedback surveys come back from completed cases, the firm can aggregate sentiment scores to identify trends in client satisfaction without reading every response manually.
+
+The confidence scores are expressed as values between 0 and 1 that sum to 1 across the three categories (positive, negative, neutral). A document might return 0.05 positive, 0.12 neutral, and 0.83 negative -- indicating strong negative sentiment. The mixed label appears when individual sentences within a document carry different sentiments, and no single sentiment dominates.
+
+=== 6.2.2 Key Phrase Extraction
+
+**Key phrase extraction** identifies the main concepts in a text and returns them as a list of phrases. Unlike simple keyword matching, key phrase extraction uses language understanding to identify meaningful multi-word expressions that capture the substance of the document.
+
+Given a contract clause like "The Purchaser shall indemnify the Seller against all claims arising from environmental contamination at the manufacturing facility located in Davidson County," key phrase extraction would return phrases like "Purchaser," "Seller," "claims," "environmental contamination," "manufacturing facility," and "Davidson County." These phrases give you a snapshot of what the clause is about without reading the full text.
+
+For the law firm's document processing pipeline, key phrases serve as metadata tags that improve search and classification. An attorney searching for documents related to "environmental contamination" will find this contract even if the firm's internal classification system filed it under "real estate transactions."
+
+=== 6.2.3 Named Entity Recognition (NER)
+
+**Named entity recognition (NER)** goes further than key phrase extraction by identifying entities in the text and classifying them into predefined categories such as Person, Organization, Location, DateTime, Quantity, and others. NER does not just find important words -- it tells you _what kind of thing_ each entity is.
+
+In the contract clause from the previous section, NER would identify "Davidson County" as a Location, "Purchaser" and "Seller" as generic references (which in a full document would resolve to specific Organization entities), and any mentioned dates or monetary amounts as DateTime and Quantity entities respectively. The pre-built NER model recognizes dozens of entity categories including email addresses, phone numbers, URLs, IP addresses, and medical, financial, and legal terms.
+
+// Graphic G6.1: NER output visualization showing a sample legal text with entities highlighted and categorized by type (Person, Organization, Location, DateTime, Quantity)
+image::ch06/g6-1-ner-output-visualization.png[NER Output Visualization]
+
+For Carter, Reeves & Associates, NER is the backbone of automated entity extraction. When a new contract arrives, the system runs NER to extract party names, effective dates, monetary amounts, and jurisdictions. These structured fields populate the case management system automatically, eliminating the manual data entry that currently consumes paralegal time.
+
+=== 6.2.4 Language Detection
+
+**Language detection** identifies the language of a given text and returns a language code (such as "en" for English, "es" for Spanish, or "zh-Hans" for Simplified Chinese) along with a confidence score. The service can detect over 120 languages and works with short text snippets as well as full documents.
+
+The law firm occasionally receives documents in languages other than English -- contracts from international clients, regulatory filings from foreign jurisdictions, correspondence from multilingual parties. Language detection serves as the first step in a processing pipeline: detect the language, and if it is not English, route the document to a translation service before applying the rest of the analytics pipeline. Without language detection, running English-trained models on non-English text produces unreliable results.
+
+=== 6.2.5 Linked Entity Recognition
+
+**Linked entity recognition** identifies entities in text and links them to well-known knowledge bases, typically Wikipedia. When the text mentions "Section 409A," linked entity recognition connects that reference to the Wikipedia article about Section 409A of the Internal Revenue Code, providing disambiguation and additional context.
+
+This capability is particularly useful when entity names are ambiguous. The word "Mercury" could refer to the planet, the element, the Roman god, or a defunct car brand. Linked entity recognition resolves this ambiguity by examining the surrounding context and linking to the most likely referent. For legal documents, this helps disambiguate references to specific regulations, court cases, and organizations that share names with common words.
+
+=== 6.2.6 When to Use Pre-Built Analytics vs. Custom Models
+
+Pre-built text analytics capabilities are your starting point. They work immediately, require no training data, and cover a wide range of general-purpose tasks. Use pre-built capabilities when the entity types you need are among the standard categories (Person, Organization, Location, DateTime), when general sentiment detection is sufficient, and when your text is in a commonly supported language.
+
+However, pre-built models have limits. They do not understand your domain's specific vocabulary, classification schemes, or entity types. The pre-built NER model will recognize "Davidson County" as a location, but it will not recognize "409A violation" as a compliance issue category specific to your firm's classification system. It will not know that your firm classifies documents into practice areas like "M&A," "Employment Litigation," "Regulatory Compliance," and "Intellectual Property." For these domain-specific needs, you must build custom models -- the subject of Section 6.3.
+
+The decision framework is straightforward: start with pre-built capabilities, evaluate their accuracy on your specific data, and build custom models only for the gaps. This approach minimizes development effort while maximizing accuracy where it matters most.
+
+[TIP]
+====
+Pre-built NER covers common entity types like Person, Organization, Location, and DateTime. If your application needs to recognize domain-specific entity types -- such as legal clause types, medical procedure codes, or internal product identifiers -- you will need a custom NER model. Section 6.3 covers the custom model training workflow.
+====
+
+The following code example demonstrates how to call the Azure AI Language API to perform sentiment analysis, key phrase extraction, and named entity recognition in a single request. This batched approach is both efficient and practical -- in production, you will almost always want multiple analyses from the same text.
+
+[source,python]
+----
+import os
+from azure.ai.textanalytics import TextAnalyticsClient
+from azure.core.credentials import AzureKeyCredential
+
+# Authenticate with your Azure AI Language resource
+endpoint = os.environ["AZURE_LANGUAGE_ENDPOINT"]
+key = os.environ["AZURE_LANGUAGE_KEY"]
+client = TextAnalyticsClient(endpoint=endpoint, credential=AzureKeyCredential(key))
+
+# Sample legal document text
+documents = [
+    """Carter, Reeves & Associates has reviewed the Meridian Technologies
+    acquisition agreement dated January 15, 2026. The purchase price of
+    $4.2 million is contingent upon completion of environmental due
+    diligence for the Davidson County facility. We have identified
+    potential Section 409A compliance concerns regarding the deferred
+    compensation provisions in Article VII."""
+]
+
+# Sentiment analysis
+sentiment_results = client.analyze_sentiment(documents)
+for doc in sentiment_results:
+    print(f"Overall sentiment: {doc.sentiment}")
+    print(f"Scores: pos={doc.confidence_scores.positive:.2f}, "
+          f"neu={doc.confidence_scores.neutral:.2f}, "
+          f"neg={doc.confidence_scores.negative:.2f}")
+
+# Key phrase extraction
+keyphrase_results = client.extract_key_phrases(documents)
+for doc in keyphrase_results:
+    print(f"\nKey phrases: {', '.join(doc.key_phrases)}")
+
+# Named entity recognition
+ner_results = client.recognize_entities(documents)
+for doc in ner_results:
+    print("\nNamed entities:")
+    for entity in doc.entities:
+        print(f"  {entity.text} -> {entity.category} "
+              f"(confidence: {entity.confidence_score:.2f})")
+----
+
+This code would produce output identifying "Carter, Reeves & Associates" and "Meridian Technologies" as Organization entities, "January 15, 2026" as a DateTime entity, "$4.2 million" as a Quantity (currency) entity, "Davidson County" as a Location entity, and "Section 409A" as a linked regulatory reference. The sentiment would likely register as neutral, since legal review language tends toward objective, analytical phrasing.
+
+== 6.3 Custom Text Classification
+
+=== 6.3.1 When Pre-Built Capabilities Aren't Enough
+
+The pre-built text analytics capabilities from Section 6.2 handle general-purpose tasks well, but Carter, Reeves & Associates needs something the pre-built models cannot provide: document classification into the firm's specific practice areas. The firm categorizes documents into areas like Mergers & Acquisitions, Employment Litigation, Regulatory Compliance, Intellectual Property, Real Estate Transactions, and Corporate Governance. No pre-built model understands these categories because they are specific to this firm's organizational structure.
+
+**Custom text classification** lets you train a model on your own labeled data to classify text into categories you define. You provide example documents with their correct labels, the service trains a model that learns the patterns distinguishing each category, and you deploy the trained model as an API endpoint that classifies new documents automatically.
+
+// Graphic G6.2: Custom text classification workflow showing the stages from data labeling through training, evaluation, and deployment
+image::ch06/g6-2-custom-classification-workflow.png[Custom Text Classification Workflow]
+
+=== 6.3.2 Training Data Requirements
+
+Custom text classification requires labeled training data -- documents that you have already categorized correctly. The quality and quantity of this training data directly determine the quality of your model.
+
+Azure AI Language requires a minimum of 10 labeled documents per category, but that minimum produces a weak model. For production-quality classification, aim for at least 50 labeled documents per category, with more for categories that are difficult to distinguish. The documents should represent the full variety of text you expect the model to encounter. If your "Employment Litigation" category includes termination disputes, discrimination claims, and wage-and-hour cases, your training data should include examples of all three subtypes.
+
+Training data must be stored in Azure Blob Storage in a specific format. Each document is a separate text file, and a JSON labels file maps each document to its category or categories. The labels file is what tells the training process which category each document belongs to.
+
+Balance matters. If you provide 200 examples for Mergers & Acquisitions but only 15 for Intellectual Property, the model will be biased toward predicting M&A. Aim for roughly equal representation across categories, or at least ensure no category is severely underrepresented relative to the others.
+
+=== 6.3.3 Single-Label vs. Multi-Label Classification
+
+Azure AI Language supports two classification modes. In **single-label classification**, each document receives exactly one category label. A contract is either an M&A document _or_ an Employment Litigation document, but not both. This mode is appropriate when your categories are mutually exclusive -- every document belongs to exactly one practice area.
+
+In **multi-label classification**, each document can receive multiple category labels simultaneously. A document about an employment dispute arising from a merger might correctly belong to both "Mergers & Acquisitions" and "Employment Litigation." Multi-label classification is appropriate when documents genuinely span multiple categories, which is common in legal work where a single matter can involve contract law, regulatory compliance, and intellectual property simultaneously.
+
+Choose your classification mode before labeling your training data, because the labeling approach differs. Single-label data assigns one label per document. Multi-label data can assign multiple labels per document. Switching modes after labeling requires re-labeling your data.
+
+=== 6.3.4 The Training and Evaluation Cycle
+
+Once your training data is prepared and uploaded, the training process follows a structured cycle.
+
+**Training.** You initiate a training job through the Azure portal or REST API. The service splits your data into training and testing sets (you can specify the split ratio or let the service choose automatically), trains a classification model on the training set, and evaluates it against the test set. Training typically takes minutes to a few hours depending on the volume of data.
+
+**Evaluation.** After training completes, the service provides evaluation metrics. **Precision** measures what percentage of documents the model predicted for a given category actually belong to that category. **Recall** measures what percentage of documents that actually belong to a category were correctly identified by the model. **F1 score** is the harmonic mean of precision and recall, providing a single metric that balances both. Review these metrics per category -- a model might perform excellently on M&A documents (lots of training examples, distinctive vocabulary) but poorly on Corporate Governance documents (fewer examples, vocabulary overlap with other categories).
+
+**Iteration.** If evaluation metrics are unsatisfactory, diagnose the problem. Low precision for a category means the model is over-predicting that category -- add more negative examples or improve label quality. Low recall means the model is missing documents that belong to that category -- add more positive examples that represent the variety within that category. Each iteration of labeling, training, and evaluation brings the model closer to production quality.
+
+=== 6.3.5 Deployment and Versioning
+
+When your model's evaluation metrics meet your quality bar, you deploy it as a named deployment within your Language resource. The deployed model receives an endpoint that you call just like the pre-built analytics APIs -- send text, receive classification labels with confidence scores.
+
+Azure AI Language supports multiple deployed versions of the same model. This enables a production workflow where the current model serves live traffic while you train and evaluate a new version on updated data. When the new version meets your quality standards, you swap it into production. If the new version underperforms, you roll back to the previous version. This versioning capability is essential for maintaining classification quality as your document landscape evolves -- new practice areas emerge, document styles change, and the vocabulary shifts over time.
+
+[IMPORTANT]
+====
+Custom models are only as good as your training data. Budget significant time for data curation -- collecting representative documents, labeling them accurately, and balancing the dataset across categories. A model trained on poorly labeled data will confidently produce wrong classifications, which is worse than no classification at all because users will trust its output.
+====
+
+== 6.4 Question Answering Knowledge Bases
+
+=== 6.4.1 What a QA Knowledge Base Provides
+
+A **question answering (QA) knowledge base** is a curated collection of question-answer pairs that an application can search using natural language queries. Instead of building a full search engine or relying solely on a generative model to fabricate answers, a QA knowledge base returns specific, pre-approved answers from your curated content.
+
+For Carter, Reeves & Associates, a QA knowledge base transforms the firm's document archive into an interactive resource. An attorney can ask "What is the non-compete duration in the Meridian Technologies employment agreements?" and receive the exact answer extracted from the relevant document, along with a confidence score indicating how well the question matches the stored content. This is fundamentally different from a keyword search -- the attorney does not need to guess which keywords to use or browse through ranked results. The system understands the _intent_ of the question and returns the _answer_, not a list of documents.
+
+Azure AI Language provides the custom question answering feature (formerly QnA Maker) that lets you build, train, and deploy QA knowledge bases. You create a knowledge base, populate it with question-answer pairs from various sources, and deploy it as an API endpoint.
+
+=== 6.4.2 Adding Source Documents
+
+You can populate a QA knowledge base from several source types. **Manual entry** lets you type question-answer pairs directly. **URLs** point the service at web pages, and it extracts Q&A pairs from the content -- particularly effective for FAQ pages. **Documents** such as PDFs, Word files, and text files can be uploaded, and the service extracts Q&A pairs from the content structure, using headings as potential questions and the following text as answers.
+
+For the law firm, the most practical approach combines document upload with manual curation. Upload contracts, policy documents, and procedural guides to generate an initial set of Q&A pairs. Then review and refine the extracted pairs -- add alternative phrasings for common questions, correct any misextracted answers, and add Q&A pairs for topics the automatic extraction missed.
+
+Each Q&A pair can include **metadata** tags that enable filtered searches. Tag pairs with practice area, document type, or client name, and users can restrict their queries to specific subsets of the knowledge base. An attorney working on the Meridian Technologies matter can filter to only Q&A pairs tagged with that client name, eliminating irrelevant results from other matters.
+
+=== 6.4.3 Confidence Scores
+
+Every answer returned by the QA knowledge base includes a **confidence score** between 0 and 1 that indicates how well the user's question matches the stored Q&A pair. A score of 0.95 means the service is highly confident it found the right answer. A score of 0.35 means the match is weak and the answer may not be relevant.
+
+Set a **confidence threshold** for your application. Answers above the threshold are presented to the user. Answers below the threshold trigger a fallback response -- perhaps "I could not find a confident answer to your question. Please try rephrasing or contact a librarian for help." Setting the right threshold involves a tradeoff: too high, and the system refuses to answer questions it could handle; too low, and it returns irrelevant answers that erode user trust.
+
+=== 6.4.4 Multi-Turn Conversations
+
+QA knowledge bases support **multi-turn conversations** through follow-up prompts. When a user asks a broad question, the system can present follow-up options that narrow the scope. For example, a question like "What are the termination provisions?" might return a top-level answer with follow-up prompts: "Are you asking about termination for cause, termination for convenience, or termination upon change of control?" Each follow-up leads to a more specific answer.
+
+You configure multi-turn conversations by linking Q&A pairs in a parent-child hierarchy. The parent pair handles the broad question, and the child pairs handle the specific follow-ups. This structure mirrors how a knowledgeable human would respond -- starting broad and narrowing based on what the questioner actually needs.
+
+=== 6.4.5 Training and Testing
+
+After populating your knowledge base, you train it to optimize the matching model for your specific content. Training updates the service's internal index and ranking model based on your Q&A pairs, metadata, and any alternative phrasings you have defined.
+
+Testing is equally important. Use the built-in test panel in Language Studio to submit queries and examine the returned answers and confidence scores. Test with the exact phrasings your users are likely to use, including informal language, abbreviations, and domain jargon. If the system fails to match a legitimate question, add that phrasing as an alternative question for the relevant Q&A pair and retrain.
+
+=== 6.4.6 Combining QA with Generative AI
+
+A QA knowledge base returns pre-written answers from curated content. This is reliable but rigid -- the answer is exactly what was stored, with no adaptation to the user's specific context. Combining QA with generative AI gives you the best of both worlds: the factual reliability of curated answers with the natural fluency of generated responses.
+
+In this hybrid approach, the QA knowledge base retrieves the relevant answer, and a generative model (such as Azure OpenAI Service) uses that answer as grounding context to generate a natural-language response tailored to the user's question. The generative model can synthesize information from multiple Q&A matches, adjust the formality of the response, and present the answer in the context of the conversation -- all while staying grounded in the curated content.
+
+[NOTE]
+====
+QA knowledge bases and RAG (covered in xref:ch02-rag-and-content-safety.adoc[Chapter 2]) solve similar problems differently. QA works from curated question-answer pairs -- you control exactly what answers exist. RAG retrieves chunks from broader document corpora and lets the model synthesize answers. QA is better when you need precise, controlled answers for known questions. RAG is better when questions are unpredictable and the answer might come from anywhere in a large corpus. Many production systems use both.
+====
+
+== 6.5 Speech Services
+
+Azure AI Speech services bridge the gap between spoken language and text, enabling applications that listen, speak, and converse. For Carter, Reeves & Associates, speech capabilities transform how attorneys interact with the document processing system -- dictating case notes instead of typing them, listening to document summaries during a commute, and engaging in voice-driven Q&A sessions.
+
+=== 6.5.1 Speech-to-Text
+
+**Speech-to-text (STT)** converts spoken audio into written text. The Azure AI Speech service accepts audio input from microphones, audio files, or audio streams and returns transcribed text with punctuation, capitalization, and timing information.
+
+The service supports two recognition modes. **Continuous recognition** processes long-form audio such as meeting recordings, dictations, or phone calls, producing a full transcript. **Single-shot recognition** processes a short utterance -- typically a single sentence or command -- and is designed for interactive applications where the user speaks a query and waits for a response.
+
+Transcription results include more than just the words. The service returns **word-level timestamps** that map each word to its position in the audio, enabling applications that synchronize text with audio playback. It also returns **confidence scores** for individual words, flagging portions of the transcription where the model was uncertain. And it can identify **multiple speakers** through speaker diarization, labeling which segments of a conversation belong to which participant.
+
+=== 6.5.2 Text-to-Speech
+
+**Text-to-speech (TTS)** converts written text into spoken audio. The Azure AI Speech service offers both standard and neural voices, with neural voices producing remarkably natural-sounding speech that includes appropriate pauses, intonation, and emphasis.
+
+You control the output through **Speech Synthesis Markup Language (SSML)**, an XML-based language that lets you specify the voice, speaking rate, pitch, volume, emphasis, pauses, and pronunciation. SSML is particularly important for legal content where correct pronunciation of proper nouns, Latin terms, and statutory references matters. You can add phonetic spellings for unusual words, insert pauses between document sections, and adjust the speaking rate for complex content.
+
+The service supports over 400 neural voices across more than 140 languages and dialects. For the law firm, you would select a professional-sounding English voice and configure SSML to handle legal terminology correctly.
+
+=== 6.5.3 Real-Time vs. Batch Processing
+
+Speech services operate in two processing modes. **Real-time processing** handles audio as it is produced -- the user speaks, and the system transcribes simultaneously. This mode is essential for interactive applications like voice-driven Q&A, live captioning, and dictation. Latency is critical in real-time mode; users expect near-instantaneous results.
+
+**Batch processing** handles pre-recorded audio files and is optimized for throughput rather than latency. Use batch processing for transcribing meeting recordings, depositions, or archived voice memos. Batch transcription can process multiple files in parallel and is more cost-effective than real-time processing for large volumes of pre-recorded audio.
+
+The choice between modes depends on your use case. The firm's dictation feature requires real-time processing because attorneys expect to see their words appear on screen as they speak. Transcribing archived deposition recordings uses batch processing because there is no urgency and the volume may be large.
+
+=== 6.5.4 Language and Voice Selection
+
+Azure AI Speech supports a broad range of languages for both speech-to-text and text-to-speech. When configuring the service, you specify the **locale** -- a language-region combination like `en-US` (English, United States) or `es-MX` (Spanish, Mexico). The locale determines the acoustic model used for speech-to-text recognition and the available voices for text-to-speech synthesis.
+
+For multilingual environments, you can enable **automatic language detection**, where the service identifies the spoken language and applies the appropriate model. This is useful when the law firm receives voice messages from international clients who may speak in different languages.
+
+Voice selection for text-to-speech involves choosing from the catalog of neural voices. Each voice has a distinct character -- some sound authoritative and formal, others conversational and warm. Preview voices in Speech Studio before committing to one for your application. You can also create **custom neural voices** trained on specific voice recordings, though this requires significant audio data and is typically reserved for high-profile applications.
+
+=== 6.5.5 Integrating Speech into a Chat Application
+
+The most compelling use of speech services is integrating them into a conversational application -- an audio-enabled chat interface where the user speaks a question, the system processes it through your NLP pipeline, and a synthesized voice reads the answer aloud.
+
+// Graphic G6.3: Speech-enabled chat application loop showing the cycle from user speech through STT, language processing, answer generation, and TTS back to the user
+image::ch06/g6-3-speech-chat-loop.png[Speech-Enabled Chat Application Loop]
+
+The architecture follows a loop. The user speaks into a microphone. The speech-to-text service transcribes the utterance into text. The text is sent to your language processing pipeline -- perhaps to the QA knowledge base from Section 6.4 or to a generative model. The pipeline returns a text answer. The text-to-speech service synthesizes the answer into audio. The audio plays through the speaker. The user hears the response and speaks again.
+
+Each step in this loop introduces latency. The total round-trip time -- from the user finishing their question to hearing the first word of the response -- must be short enough to feel conversational. Techniques like **streaming synthesis** (where TTS begins producing audio before the full text is generated) and **partial recognition** (where STT sends interim results before the user finishes speaking) help minimize perceived latency.
+
+=== 6.5.6 Accuracy Considerations
+
+Speech-to-text accuracy depends on several factors. **Audio quality** is the most significant -- clear recordings from close-range microphones produce better results than noisy recordings from distant microphones. **Accents and dialects** affect recognition accuracy, particularly for speakers whose speech patterns differ from the training data. **Domain vocabulary** is a persistent challenge -- legal terms like "voir dire," "certiorari," and "estoppel" may not be recognized accurately by the general-purpose model.
+
+[TIP]
+====
+Speech-to-text accuracy improves significantly with **custom speech models** trained on domain vocabulary. By providing a list of domain-specific terms and phrases (and optionally domain-specific audio with transcripts), you can train a custom model that recognizes legal terminology, medical jargon, or industry-specific language far more accurately than the base model.
+====
+
+The following code example demonstrates a basic speech-to-text transcription call using the Azure AI Speech SDK. This is the starting point for building the speech input component of a chat application.
+
+[source,python]
+----
+import os
+import azure.cognitiveservices.speech as speechsdk
+
+# Configure the speech service
+speech_config = speechsdk.SpeechConfig(
+    subscription=os.environ["AZURE_SPEECH_KEY"],
+    region=os.environ["AZURE_SPEECH_REGION"]
+)
+
+# Set the recognition language
+speech_config.speech_recognition_language = "en-US"
+
+# Configure audio input (microphone for real-time, file for batch)
+audio_config = speechsdk.audio.AudioConfig(
+    filename="deposition_recording.wav"  # Use use_default_microphone=True
+)                                        # for live microphone input
+
+# Create recognizer and perform continuous recognition
+speech_recognizer = speechsdk.SpeechRecognizer(
+    speech_config=speech_config,
+    audio_config=audio_config
+)
+
+# Single-shot recognition for short utterances
+result = speech_recognizer.recognize_once()
+
+if result.reason == speechsdk.ResultReason.RecognizedSpeech:
+    print(f"Recognized: {result.text}")
+    print(f"Duration: {result.duration}")
+elif result.reason == speechsdk.ResultReason.NoMatch:
+    print("No speech could be recognized in the audio.")
+elif result.reason == speechsdk.ResultReason.Canceled:
+    cancellation = result.cancellation_details
+    print(f"Recognition canceled: {cancellation.reason}")
+    if cancellation.reason == speechsdk.CancellationReason.Error:
+        print(f"Error details: {cancellation.error_details}")
+----
+
+This code configures the Speech service with your subscription credentials, sets up audio input from a file (you could switch to live microphone input by using `use_default_microphone=True`), and performs a single recognition. The result includes the transcribed text, timing information, and status details. In a production chat application, you would use continuous recognition with event handlers to process speech as it arrives, feeding each recognized utterance into your language processing pipeline.
+
+== 6.6 Designing Multi-Service NLP Pipelines
+
+The individual services from Sections 6.2 through 6.5 are building blocks. Their real power emerges when you connect them into a pipeline where each service performs its specialized task and passes results to the next stage. This section teaches you to think in pipelines -- designing end-to-end systems that transform raw, unstructured input into structured, actionable output.
+
+=== 6.6.1 Pipeline Thinking: Connecting Services So Output Feeds Input
+
+A **pipeline** is a sequence of processing stages where the output of one stage becomes the input of the next. In manufacturing, raw materials enter one end and finished products exit the other. In NLP, raw text (or raw audio) enters one end, and structured information, classifications, answers, or synthesized speech exits the other.
+
+Pipeline thinking requires you to define three things for each stage: what it receives as input, what processing it performs, and what it produces as output. The output specification of one stage must be compatible with the input specification of the next. If your classification stage produces a practice area label but your extraction stage expects a document type code, you need a mapping step between them.
+
+This is the same compositional thinking you applied when building agent tool chains in xref:ch04-agent-development.adoc[Chapter 4]. The difference is that NLP pipelines compose _services_ rather than _tools_, and each service may have different latency characteristics, error modes, and cost structures.
+
+=== 6.6.2 A Reference Pipeline: Intake to QA Indexing
+
+Let us design a complete pipeline for Carter, Reeves & Associates that processes incoming documents from intake through to QA indexing. This reference pipeline has five stages.
+
+**Stage 1: Document Intake.** Documents arrive in various formats -- PDF, Word, scanned images, email attachments. The intake stage normalizes these formats into plain text. For digital documents, this involves text extraction. For scanned documents, this requires Optical Character Recognition (OCR) using Azure AI Document Intelligence (which you will explore in detail in xref:ch08-document-intelligence-and-knowledge-mining.adoc[Chapter 8]). For emails, this involves extracting the body text and attachments. The output of this stage is clean, plain text with metadata (source, receipt date, file type).
+
+**Stage 2: Language Detection and Classification.** The plain text enters the Azure AI Language service for language detection. English documents proceed directly to classification. Non-English documents are routed through a translation step first. The custom text classification model from Section 6.3 then assigns each document to one or more practice areas. The output is the original text plus language code and practice area labels.
+
+**Stage 3: Entity Extraction.** The classified text passes through named entity recognition (both pre-built and custom NER models). The pre-built model extracts standard entities -- names, dates, locations, monetary amounts. A custom NER model (trained on the firm's data) extracts domain-specific entities -- case numbers, statutory references, clause types, court names. The output is a structured entity map alongside the original text.
+
+**Stage 4: Summarization and Key Phrase Extraction.** The text passes through key phrase extraction to generate metadata tags, and through a summarization model (Azure OpenAI Service) to generate a concise summary. The output is the original text, entity map, key phrases, and summary.
+
+**Stage 5: QA Indexing.** The summary, key phrases, and extracted entities are formatted into Q&A pairs and added to the question answering knowledge base. The Q&A pairs are tagged with metadata from earlier stages -- practice area, client name, document type, date. The output is an updated, searchable QA knowledge base that attorneys can query.
+
+// Graphic G6.4: Multi-service NLP pipeline for the law firm showing the five stages from document intake through QA indexing, with Azure services labeled at each stage
+image::ch06/g6-4-nlp-pipeline-law-firm.png[Multi-Service NLP Pipeline for Law Firm]
+
+=== 6.6.3 Pre-Built vs. Custom Decisions at Each Stage
+
+At each pipeline stage, you face a choice: use a pre-built capability or train a custom model. The right answer varies by stage.
+
+For language detection (Stage 2), the pre-built model is almost always sufficient. Language detection is a well-solved problem with high accuracy across many languages. Training a custom language detection model is rarely justified.
+
+For classification (Stage 2), a custom model is necessary because practice area categories are firm-specific. No pre-built model knows the difference between your M&A and Corporate Governance categories.
+
+For entity extraction (Stage 3), a hybrid approach works best. Use the pre-built NER model for standard entities (names, dates, amounts) and a custom NER model for domain-specific entities (case numbers, statutory references). This avoids retraining a model for things the pre-built model already handles well.
+
+For summarization (Stage 4), a pre-built generative model with good prompting is usually sufficient. Legal summarization benefits from prompt engineering that specifies the desired summary structure, length, and focus areas.
+
+// Graphic G6.5: Pre-built vs. custom NLP comparison chart showing decision factors (accuracy, setup time, cost, maintenance) for each pipeline stage
+image::ch06/g6-5-prebuilt-vs-custom-comparison.png[Pre-Built vs. Custom NLP Comparison]
+
+=== 6.6.4 Human Review Integration Points
+
+No NLP pipeline is perfect. Errors in entity extraction, misclassifications, and low-confidence QA matches all require human review. The question is not _whether_ to include human review but _where_ to insert it in the pipeline.
+
+Place human review at points where errors have the highest downstream impact. Misclassification at Stage 2 means the document is routed to the wrong practice group -- every subsequent step operates on a false premise. Entity extraction errors at Stage 3 propagate incorrect data into the case management system. Low-confidence QA matches at Stage 5 could give attorneys wrong answers to legal questions.
+
+Design your pipeline so that human reviewers see only the cases that need attention. Use confidence thresholds to separate high-confidence results (which proceed automatically) from low-confidence results (which are flagged for review). A classification confidence of 0.92 might proceed automatically, while a confidence of 0.61 gets queued for a paralegal to review and correct. This approach keeps the pipeline efficient while maintaining accuracy where it matters.
+
+=== 6.6.5 Performance Considerations
+
+Pipeline performance depends on the slowest stage. If document intake processes 100 documents per minute but entity extraction handles only 10, entity extraction is your bottleneck and the system's throughput is 10 documents per minute regardless of how fast the other stages run.
+
+Measure the throughput and latency of each stage independently. Azure AI Language APIs have rate limits (typically measured in transactions per second) that constrain throughput. Custom models may have different performance characteristics than pre-built APIs. OCR on scanned documents is typically the slowest stage because image processing is computationally intensive.
+
+Scale strategies include parallelizing independent stages (Stages 3 and 4 can run concurrently since they both take the same input), batching requests to maximize API efficiency (many Azure AI APIs accept batches of up to 25 documents per request), and caching results for documents that have been processed before.
+
+=== 6.6.6 Error Propagation: How Errors in Early Stages Compound Downstream
+
+The most insidious problem in multi-stage pipelines is **error propagation** -- errors in early stages compound as they flow through subsequent stages. If Stage 1 (OCR) misreads a date as "January 15, 2026" when the document actually says "January 15, 2020," every downstream stage that references that date inherits the error. The entity extractor faithfully records the wrong date. The QA knowledge base indexes the wrong date. An attorney who later queries "What is the effective date of the Meridian Technologies agreement?" receives a confidently wrong answer.
+
+// Graphic G6.6: Error propagation diagram showing how a single OCR error in Stage 1 cascades through classification, extraction, and QA indexing, growing in impact at each stage
+image::ch06/g6-6-error-propagation.png[Error Propagation in NLP Pipelines]
+
+Error propagation is multiplicative, not additive. If each stage has 95% accuracy independently, a five-stage pipeline does not have 95% accuracy -- it has approximately 0.95^5 = 77% accuracy, assuming errors are independent. In practice, errors are often correlated (a badly scanned document causes errors in every subsequent stage), making the compound accuracy even worse.
+
+Mitigate error propagation through several strategies. **Validate early**: catch errors as close to the source as possible, where they are cheapest to fix. **Carry confidence scores forward**: if Stage 1 reports low confidence on a portion of the text, downstream stages should know to treat that portion with extra caution. **Design idempotent stages**: if you re-process a document after correcting an upstream error, the downstream stages should produce correct results without manual intervention. **Log lineage**: track which upstream outputs contributed to each downstream result so you can trace errors back to their source.
+
+[IMPORTANT]
+====
+Design pipelines to fail gracefully at each stage. If entity extraction fails on a document, the document should still be classified and indexed -- just with missing entity data flagged for later extraction. A pipeline that halts entirely because one stage fails on one document will not survive contact with real-world data.
+====
+
+== 6.7 Hands-On Connections
+
+This chapter connects to five lab experiences -- the heaviest lab week in the course. Each lab focuses on a specific capability, and together they give you hands-on experience with every service discussed in this chapter.
+
+=== Lab 11: Text Analysis
+
+In Lab 11, you will use the Azure AI Language pre-built text analytics APIs to analyze sample documents. Focus on these aspects as you work through the lab:
+
+* **Multi-feature requests.** Observe how a single API call can return sentiment, key phrases, and named entities simultaneously. How does the batched approach compare to making three separate calls?
+* **Entity categories.** Examine the entity categories returned by NER. Which categories are most useful for the law firm scenario? Which entity types would you need a custom model to recognize?
+* **Confidence scores.** Pay attention to the confidence scores on individual entities. Are high-confidence entities more likely to be correct? What would you set as a threshold for automated processing vs. human review?
+
+=== Lab 12: Question Answering
+
+In Lab 12, you will build and deploy a question answering knowledge base using Azure AI Language Studio. Focus on:
+
+* **Source quality.** How does the quality of your source documents affect the generated Q&A pairs? Compare results from well-structured documents vs. unstructured text.
+* **Alternative phrasings.** Add alternative phrasings for key questions and observe how this improves matching accuracy. What types of rephrasing make the biggest difference?
+* **Confidence thresholds.** Test queries at different confidence thresholds. Where is the sweet spot between answering too eagerly (low threshold, more wrong answers) and too conservatively (high threshold, more "I don't know" responses)?
+
+=== Lab 13: Custom Text Classification
+
+In Lab 13, you will train and deploy a custom text classification model. Focus on:
+
+* **Data labeling.** Experience the process of labeling training documents. How long does it take? What ambiguous cases arise -- documents that could belong to multiple categories?
+* **Evaluation metrics.** After training, examine the precision, recall, and F1 scores for each category. Which categories does the model handle well, and which does it struggle with? Can you explain why based on the training data?
+* **Iteration.** If time permits, add more training data for underperforming categories and retrain. How much do the metrics improve?
+
+=== Lab 14: Speech Services
+
+In Lab 14, you will work with Azure AI Speech services for speech-to-text and text-to-speech. Focus on:
+
+* **Recognition accuracy.** Test speech-to-text with different audio qualities and speaking styles. How does background noise affect accuracy? How does speaking speed affect results?
+* **Voice selection.** Experiment with different neural voices for text-to-speech. Which voices sound most appropriate for a professional legal application?
+* **SSML control.** Use SSML to adjust pronunciation, rate, and emphasis. How does SSML improve the naturalness of synthesized speech for legal content?
+
+=== Lab 15: Audio Chat App
+
+In Lab 15, you will integrate speech-to-text and text-to-speech into a chat application, creating a voice-driven conversational interface. Focus on:
+
+* **End-to-end flow.** Trace a spoken question through the full pipeline: speech-to-text, language processing, and text-to-speech response. Where does the latency come from?
+* **Error handling.** What happens when speech recognition fails or returns low confidence? How does your application communicate uncertainty to the user through voice?
+* **User experience.** Evaluate the conversational experience. Does the interaction feel natural, or are there awkward pauses, mispronunciations, or misunderstandings that need addressing?
+
+== 6.8 Assessment Preparation
+
+This chapter connects to the NLP Pipeline Design assessment, in which you will diagram a multi-service NLP pipeline and write a justification of your design decisions (800-1,200 words).
+
+=== The Business Scenario
+
+Carter, Reeves & Associates needs a document processing system with these requirements:
+
+* **Accept documents in multiple formats** -- PDFs, Word documents, scanned images, and emails -- and normalize them into processable text.
+* **Classify each document** into the firm's practice areas: Mergers & Acquisitions, Employment Litigation, Regulatory Compliance, Intellectual Property, Real Estate Transactions, and Corporate Governance.
+* **Extract key entities** -- party names, dates, monetary amounts, jurisdictions, case numbers, and statutory references -- and store them in a structured format.
+* **Generate concise summaries** for each document to support rapid attorney review.
+* **Route documents** to the appropriate practice group based on classification results.
+* **Provide a question answering interface** where attorneys can query the document archive using natural language.
+
+=== The Deliverables
+
+Your submission has two components. First, a **pipeline diagram** that shows every processing stage, the Azure AI service used at each stage, the data flowing between stages, and the human review integration points. Second, a **written justification** (800-1,200 words) organized into four sections.
+
+=== Guiding Your Thinking
+
+**Service selection.** For each stage of your pipeline, which Azure AI service is the right tool for the job? Think about what each service does well and what it does not do. Consider whether a pre-built capability is sufficient or whether a custom model is necessary. Review Sections 6.2 through 6.5 for the capabilities of each service, and refer back to the services landscape discussion in xref:ch05-advanced-agent-patterns.adoc[Chapter 5].
+
+**Data flow.** How does data move through your pipeline? What format does each stage receive its input in, and what format does it produce its output in? Are the outputs of one stage compatible with the inputs of the next, or do you need transformation steps between them? Think about the compatibility issues discussed in Section 6.6.1.
+
+**Custom vs. pre-built.** At each stage where you have a choice, justify your decision. What factors led you to choose pre-built at some stages and custom at others? Consider the tradeoffs discussed in Section 6.6.3 -- accuracy requirements, data availability, development time, and maintenance burden.
+
+**Limitations and risks.** What could go wrong with your pipeline? Think about error propagation (Section 6.6.6), performance bottlenecks (Section 6.6.5), and accuracy limitations at each stage. How does your design mitigate these risks? Where have you placed human review integration points (Section 6.6.4), and why?
+
+Do not simply restate what the chapter told you. Apply the concepts to the specific scenario, make design decisions, and defend those decisions with reasoning that shows you understand the tradeoffs.
+
+== 6.9 Key Terms
+
+sentiment analysis:: A text analytics capability that examines text and returns a sentiment label (positive, negative, neutral, or mixed) along with confidence scores for each label.
+
+key phrase extraction:: A text analytics capability that identifies the main concepts in a text and returns them as a list of meaningful phrases that capture the substance of the content.
+
+named entity recognition (NER):: A text analytics capability that identifies entities in text and classifies them into predefined categories such as Person, Organization, Location, DateTime, and Quantity.
+
+linked entity recognition:: A text analytics capability that identifies entities in text and links them to well-known knowledge base entries (such as Wikipedia articles) for disambiguation.
+
+language detection:: A text analytics capability that identifies the language of a given text and returns a language code and confidence score.
+
+custom text classification:: An Azure AI Language feature that lets you train a model on labeled data to classify text into categories you define, supporting both single-label and multi-label classification.
+
+single-label classification:: A classification mode where each document receives exactly one category label from a set of mutually exclusive categories.
+
+multi-label classification:: A classification mode where each document can receive multiple category labels simultaneously, allowing documents to belong to more than one category.
+
+precision:: An evaluation metric measuring the percentage of documents predicted for a given category that actually belong to that category.
+
+recall:: An evaluation metric measuring the percentage of documents that actually belong to a given category that were correctly identified by the model.
+
+F1 score:: The harmonic mean of precision and recall, providing a single balanced metric for evaluating classification model performance.
+
+question answering (QA) knowledge base:: A curated collection of question-answer pairs that an application can search using natural language queries, returning specific answers with confidence scores.
+
+confidence score:: A numeric value (typically between 0 and 1) indicating how certain a service is about its prediction, used to filter results and trigger human review for uncertain cases.
+
+confidence threshold:: A minimum confidence score that an answer or prediction must meet to be accepted by the application; results below the threshold trigger fallback behavior.
+
+speech-to-text (STT):: An Azure AI Speech capability that converts spoken audio into written text, supporting both real-time and batch processing modes.
+
+text-to-speech (TTS):: An Azure AI Speech capability that converts written text into synthesized spoken audio using neural voices.
+
+Speech Synthesis Markup Language (SSML):: An XML-based language for controlling text-to-speech output, including voice selection, speaking rate, pitch, emphasis, and pronunciation.
+
+custom speech model:: A speech recognition model trained on domain-specific vocabulary and audio to improve transcription accuracy for specialized terminology.
+
+NLP pipeline:: A sequence of processing stages where each stage performs a specific natural language processing task and passes its output as input to the next stage.
+
+error propagation:: The phenomenon in multi-stage pipelines where errors in early stages compound as they flow through subsequent stages, reducing overall system accuracy.
+
+== 6.10 Chapter Summary
+
+This chapter introduced the Azure AI services that transform unstructured text and speech into structured, actionable information. You began with pre-built text analytics -- sentiment analysis, key phrase extraction, named entity recognition, language detection, and linked entity recognition -- and learned when these general-purpose capabilities are sufficient and when they fall short. You then explored custom text classification, seeing how labeled training data, careful evaluation, and iterative refinement produce models that understand your domain's specific categories. Question answering knowledge bases showed you how to build curated, searchable repositories of information that return precise answers with confidence scores, and how combining QA with generative AI produces systems that are both reliable and fluent.
+
+Speech services added a new interaction modality -- voice -- through speech-to-text transcription and text-to-speech synthesis, culminating in the architecture for a speech-enabled chat application that listens, processes, and responds in a continuous loop. Finally, you learned to compose these individual services into multi-service NLP pipelines, making deliberate choices about pre-built vs. custom models at each stage, integrating human review where errors carry the highest cost, and designing for graceful failure and error containment.
+
+The labs this week are the most intensive of the course, spanning five exercises that cover text analytics, question answering, custom classification, speech services, and a complete audio chat application. Together, they give you hands-on experience with every service discussed in this chapter.
+
+In xref:ch07-computer-vision.adoc[Chapter 7], you will apply the same pattern -- pre-built capabilities first, custom models where needed, pipeline composition for complex tasks -- to a different domain: computer vision and image analysis. The architectural thinking you developed here transfers directly: vision pipelines face the same decisions about pre-built vs. custom, the same error propagation challenges, and the same need for human review integration.

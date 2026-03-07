@@ -1,0 +1,708 @@
+= Chapter 8: Document Intelligence, Knowledge Mining & Capstone
+
+== Learning Objectives
+
+By the end of this chapter, you will be able to:
+
+. Extract structured data from documents using prebuilt Document Intelligence models.
+. Configure an Azure AI Search index and knowledge mining pipeline.
+. Architect a multi-service Azure AI solution with justified design tradeoffs.
+. Communicate an AI solution architecture through a technical design document and recorded walkthrough.
+
+== 8.1 Introduction: From Documents to Decisions
+
+In xref:ch07-computer-vision.adoc[Chapter 7], you learned how Azure AI Vision services extract structured information from images -- tagging wildlife photos, reading text from trail camera captures, and classifying visual content with custom models. This chapter turns to a different but related challenge: extracting structured data from documents and making entire document collections searchable and intelligent.
+
+Consider this scenario. A regional healthcare system -- Piedmont Health Partners -- operates twelve clinics and three hospitals across the Charlotte metro area. Every day, the system processes thousands of documents: discharge summaries from inpatient stays, insurance claim forms from multiple payers, lab reports from reference laboratories, referral letters from external physicians, and patient intake forms filled out on paper or tablets. Each document contains critical information -- patient identifiers, diagnosis codes, medication lists, insurance policy numbers, procedure dates, provider signatures -- that must be extracted, validated, and routed to the correct downstream system.
+
+Today, this process depends heavily on manual data entry. Medical records staff open each document, identify its type, locate the relevant fields, and key the data into the electronic health record system. Errors are common. A misread policy number delays insurance reimbursement. A transposed digit in a medication dosage creates a patient safety risk. Staff members spend hours on data entry that could be spent on patient care coordination.
+
+But extraction is only half the problem. Piedmont Health Partners also needs to make its growing document archive searchable and intelligent. When a care coordinator needs to find all discharge summaries mentioning a specific medication interaction, she currently asks the medical records team to search manually -- a process that takes days. When a quality improvement team wants to analyze trends in readmission diagnoses across all three hospitals, they face weeks of chart review.
+
+The healthcare system's CIO envisions a two-part solution. First, an automated document processing pipeline that can identify each incoming document's type, extract the relevant fields with high accuracy, and flag uncertain extractions for human review. Second, a knowledge mining system that ingests the entire document archive, enriches it with AI-extracted metadata -- entities, key phrases, sentiment, medical codes -- and exposes it through a powerful search interface that supports natural-language queries.
+
+This is the chapter where the services you have studied individually across this course come together. Document Intelligence builds on the OCR concepts from xref:ch07-computer-vision.adoc[Chapter 7]. Knowledge mining pipelines use the named entity recognition from xref:ch06-nlp-and-speech.adoc[Chapter 6] and connect to the retrieval-augmented generation patterns from xref:ch02-rag-and-content-safety.adoc[Chapter 2]. And the capstone project asks you to architect a multi-service solution that draws on everything from model deployment decisions in xref:ch01-generative-ai-foundations.adoc[Chapter 1] through the agent orchestration patterns in xref:ch05-advanced-agent-patterns.adoc[Chapter 5].
+
+Here is the roadmap:
+
+* **Section 8.2** introduces Azure AI Document Intelligence and its prebuilt models for common document types.
+* **Section 8.3** covers custom Document Intelligence models for domain-specific documents.
+* **Section 8.4** explains Azure AI Search fundamentals: indexes, indexers, and query types.
+* **Section 8.5** walks through knowledge mining pipelines that enrich documents with AI during indexing.
+* **Section 8.6** steps back to survey the full Azure AI landscape and discuss multi-service architecture design.
+* **Section 8.7** prepares you for the capstone project: expanding your proposal into a full technical design document.
+* **Sections 8.8 through 8.10** connect the chapter to labs, key terms, and a course conclusion.
+
+== 8.2 Azure AI Document Intelligence
+
+Azure AI **Document Intelligence** (formerly Form Recognizer) is a service purpose-built for extracting structured data from documents. You send a document -- a PDF, image, or scanned form -- and the service returns structured fields, tables, key-value pairs, and text, all with confidence scores and positional information.
+
+=== 8.2.1 What Document Intelligence Provides vs. Raw OCR
+
+In xref:ch07-computer-vision.adoc[Chapter 7], you used the Read API to extract text from images. The Read API performs **optical character recognition** -- it finds text in an image and returns it as strings with bounding polygons. But OCR alone does not understand what the text _means_. It returns "John Smith" and "$1,247.50" and "01/15/2026" as raw strings without knowing that the first is a patient name, the second is a total charge, and the third is a service date.
+
+Document Intelligence adds a semantic layer on top of OCR. It does not just read text -- it understands document structure. It knows that an invoice has a vendor name, line items, subtotals, and a total. It knows that an ID document has a first name, last name, date of birth, and document number. It knows that a table has rows, columns, and headers. This structural understanding is what makes Document Intelligence transformative for document processing workflows.
+
+The difference matters enormously in practice. With raw OCR, you extract all the text from a discharge summary and then write custom parsing logic to find the patient name, admission date, and diagnosis codes -- logic that breaks when the document layout changes. With Document Intelligence, you get labeled fields: `PatientName: "John Smith"`, `AdmissionDate: "2026-01-10"`, `PrimaryDiagnosis: "Community-acquired pneumonia"`. The parsing intelligence is built into the model.
+
+// Graphic G8.1: Document Intelligence extraction showing a sample insurance form with extracted fields, confidence scores, and the difference between raw OCR output and structured Document Intelligence output
+image::ch08/g8-1-document-intelligence-extraction.png[Document Intelligence Extraction]
+
+=== 8.2.2 Prebuilt Models: Invoice, Receipt, ID Document, W-2, Health Insurance Card, Business Card
+
+Document Intelligence includes a library of **prebuilt models** trained on large datasets of common document types. These models work immediately -- no training data required, no model configuration needed. You select the appropriate model, send your document, and receive structured fields specific to that document type.
+
+The **invoice model** extracts vendor name, invoice number, invoice date, due date, purchase order number, billing and shipping addresses, line items (with descriptions, quantities, unit prices, and amounts), subtotals, tax amounts, total amounts, and payment terms. For Piedmont Health Partners, this model processes vendor invoices from medical supply companies, pharmaceutical distributors, and equipment manufacturers.
+
+The **receipt model** handles point-of-sale receipts, extracting merchant name, merchant address, transaction date, line items, subtotals, tax, tips, and totals. While less directly relevant to healthcare, organizations across industries use this model for expense management and financial reconciliation.
+
+The **ID document model** reads government-issued identification documents -- driver's licenses, passports, and national ID cards -- extracting first name, last name, date of birth, document number, expiration date, address, and machine-readable zone data. For the healthcare system, this model automates patient identity verification during intake.
+
+The **W-2 model** extracts employer information, employee information, wage and income data, and tax withholding details from W-2 tax forms. HR and payroll departments use this model during tax season and employee onboarding.
+
+The **health insurance card model** is particularly relevant to Piedmont Health Partners. It extracts the insurer name, member name, member ID, group number, plan type, prescription coverage information, and dependent details from insurance cards. When a patient presents an insurance card at check-in, this model can extract the relevant fields in seconds rather than the minutes required for manual entry.
+
+The **business card model** extracts contact information -- name, title, company, email addresses, phone numbers, and addresses -- from business cards and contact cards.
+
+Each prebuilt model returns a structured JSON response with labeled fields and confidence scores. The response also includes the raw extracted text and its positional information, so you always have access to the underlying OCR data alongside the semantic extraction.
+
+=== 8.2.3 How Prebuilt Models Work: Field Extraction with Confidence Scores
+
+When you submit a document to a prebuilt model, the service performs several processing steps. First, it applies OCR to extract all text and its positions within the document. Then, it applies layout analysis to identify structural elements like tables, key-value pairs, selection marks, and section headers. Finally, it applies the document-type-specific model to map the extracted text and structure to named fields.
+
+Each extracted field includes a **confidence score** between 0 and 1. A confidence score of 0.95 on a `MemberID` field means the model is highly confident it correctly identified and extracted the member ID. A score of 0.55 means the model found something that _might_ be the member ID but is uncertain -- perhaps because the text was partially obscured, the layout was unusual, or the handwriting was difficult to read.
+
+[TIP]
+====
+Fields extracted with confidence scores below 0.7 should be flagged for human review rather than accepted automatically. In healthcare document processing, where incorrect data can affect patient care and insurance reimbursement, this threshold is especially important. You can adjust the threshold based on the field's criticality -- a 0.9 threshold for medication dosages, a 0.7 threshold for address fields.
+====
+
+Confidence scores enable a **human-in-the-loop** workflow. Documents where all fields exceed the confidence threshold flow through automatically. Documents with one or more low-confidence fields are routed to a review queue where a human operator can verify or correct the extraction. This approach balances automation speed with data quality -- the majority of documents process automatically while edge cases receive human attention.
+
+=== 8.2.4 The Layout Model: Tables, Selection Marks, Paragraphs
+
+The **Layout model** is a general-purpose model that extracts document structure without mapping to document-type-specific fields. It identifies:
+
+* **Pages** and their dimensions
+* **Paragraphs** of text with reading order
+* **Tables** with row and column structure, spanning cells, and header identification
+* **Selection marks** (checkboxes and radio buttons) with their checked/unchecked state
+* **Key-value pairs** where a label is associated with a value
+* **Sections** and **headings** that reveal the document's organizational hierarchy
+
+The Layout model is invaluable when you need to extract tabular data from documents that do not match any prebuilt model. A lab report with test results in a table, a medication administration record with a dosage grid, or a surgical checklist with checkboxes -- all of these contain structured data that the Layout model can extract without custom training.
+
+For Piedmont Health Partners, the Layout model handles the wide variety of forms that arrive from external providers. Each referring physician's office uses a different referral form layout, but they all contain tables and key-value pairs that the Layout model can parse into structured data.
+
+=== 8.2.5 Handling Multi-Page Documents and Mixed-Format Inputs
+
+Real-world documents rarely arrive as single-page, single-format files. A patient intake packet might be a 15-page PDF containing a mix of typed forms, handwritten sections, printed insurance cards, and photocopied ID documents. Document Intelligence handles this complexity in several ways.
+
+For **multi-page documents**, the service processes each page and returns results organized by page number. You can submit documents up to 2,000 pages and 500 MB in size. The Layout model maintains reading order across pages, so a paragraph that spans a page break is reconstructed correctly.
+
+For **mixed-format inputs**, you can submit PDFs, JPEG, PNG, BMP, TIFF, and HEIF files. The service applies appropriate preprocessing for each format -- deskewing tilted scans, adjusting contrast for faded documents, and handling both portrait and landscape orientations.
+
+When a single PDF contains multiple logical documents -- say, an insurance card image on page 1, a filled intake form on pages 2-4, and a referral letter on pages 5-6 -- you can specify page ranges for analysis or use the document classification capability to automatically identify and separate the logical documents before extracting fields from each one.
+
+The following code example demonstrates how to extract fields from an invoice using the prebuilt invoice model with the Azure AI Document Intelligence Python SDK.
+
+[source,python]
+----
+import os
+from azure.ai.documentintelligence import DocumentIntelligenceClient
+from azure.core.credentials import AzureKeyCredential
+
+# Authenticate with your Document Intelligence resource
+endpoint = os.environ["AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT"]
+key = os.environ["AZURE_DOCUMENT_INTELLIGENCE_KEY"]
+client = DocumentIntelligenceClient(endpoint=endpoint, credential=AzureKeyCredential(key))
+
+# Analyze an invoice using the prebuilt invoice model
+invoice_url = "https://example.com/invoices/medical-supply-inv-2026-0847.pdf"
+
+poller = client.begin_analyze_document(
+    "prebuilt-invoice",
+    analyze_request={"urlSource": invoice_url}
+)
+result = poller.result()
+
+# Process each invoice found in the document
+for invoice in result.documents:
+    print(f"Document type: {invoice.doc_type}")
+    print(f"Confidence: {invoice.confidence:.2f}")
+
+    # Extract key fields with confidence scores
+    vendor_name = invoice.fields.get("VendorName")
+    if vendor_name:
+        print(f"Vendor: {vendor_name.content} "
+              f"(confidence: {vendor_name.confidence:.2f})")
+
+    invoice_total = invoice.fields.get("InvoiceTotal")
+    if invoice_total:
+        print(f"Total: {invoice_total.content} "
+              f"(confidence: {invoice_total.confidence:.2f})")
+
+    invoice_date = invoice.fields.get("InvoiceDate")
+    if invoice_date:
+        print(f"Date: {invoice_date.content} "
+              f"(confidence: {invoice_date.confidence:.2f})")
+
+    # Process line items
+    items = invoice.fields.get("Items")
+    if items:
+        for idx, item in enumerate(items.value):
+            desc = item.value.get("Description")
+            amount = item.value.get("Amount")
+            print(f"  Item {idx + 1}: {desc.content if desc else 'N/A'} "
+                  f"- {amount.content if amount else 'N/A'}")
+
+    # Flag low-confidence fields for human review
+    for field_name, field_value in invoice.fields.items():
+        if field_value.confidence and field_value.confidence < 0.7:
+            print(f"  ** REVIEW NEEDED: {field_name} = "
+                  f"'{field_value.content}' "
+                  f"(confidence: {field_value.confidence:.2f})")
+----
+
+== 8.3 Custom Document Intelligence Models
+
+Prebuilt models cover common document types that share a standardized structure across organizations. But many critical business documents are unique to a specific industry, organization, or workflow. Piedmont Health Partners uses internal forms -- triage assessment sheets, nursing care plans, surgical consent forms -- that no prebuilt model will ever cover. For these documents, you train **custom models**.
+
+=== 8.3.1 When Prebuilt Models Don't Fit
+
+You need a custom model when your documents have a unique structure that prebuilt models do not recognize. Indicators include:
+
+* The document type does not match any available prebuilt model.
+* The fields you need are domain-specific and not part of any standard schema.
+* Your documents use a proprietary layout that varies across versions but follows internal conventions.
+* You need to extract relationships between fields that prebuilt models do not capture.
+
+For Piedmont Health Partners, the surgical consent form is a clear candidate. It contains fields like procedure name, surgeon name, anesthesia type, patient acknowledgments (checkboxes), witness signatures, and risk disclosures. No prebuilt model understands this structure, and the Layout model would return raw tables and key-value pairs without the semantic labels the downstream system requires.
+
+=== 8.3.2 Training a Custom Extraction Model
+
+Training a custom Document Intelligence model follows a workflow similar to the custom models you built in xref:ch06-nlp-and-speech.adoc[Chapter 6] and xref:ch07-computer-vision.adoc[Chapter 7]: collect data, label it, train, evaluate, iterate.
+
+**Step 1: Collect sample documents.** Gather representative examples of the document type you want to process. Include variations -- different printers, scan qualities, handwriting styles, and filled-in vs. partially empty forms.
+
+**Step 2: Label the documents.** Using Document Intelligence Studio, you draw regions around each field on sample documents and assign a field name. For a surgical consent form, you would label regions for ProcedureName, SurgeonName, AnesthesiaType, PatientSignature, WitnessSignature, and each checkbox acknowledgment.
+
+**Step 3: Train the model.** Submit the labeled documents to the training API. Document Intelligence supports two model types: **template models** for documents with fixed layouts (the same field always appears in the same location) and **neural models** for documents with variable layouts (fields appear in different positions depending on content). Neural models are more flexible but require more training data.
+
+**Step 4: Evaluate and iterate.** Review the model's accuracy on held-out test documents, identify fields with low accuracy, add more labeled samples that cover the failure cases, and retrain.
+
+[IMPORTANT]
+====
+Accuracy improves significantly with 15-20+ labeled samples representing real-world variation. Five samples of the same pristine form will produce a model that fails on faded scans, rotated pages, or partially filled forms. Include the messy, real-world documents in your training set -- those are exactly the documents the model will struggle with in production.
+====
+
+=== 8.3.3 Composed Models: Combining Multiple Custom Models Behind a Single Endpoint
+
+When your workflow handles multiple document types, you can build a **composed model** that combines several custom models behind a single endpoint. Instead of writing routing logic to determine which model to call for each incoming document, you send every document to the composed model, and it automatically classifies the document type and applies the appropriate extraction model.
+
+For Piedmont Health Partners, a composed model might combine custom models for surgical consent forms, nursing care plans, and triage assessment sheets. When a new document arrives, the composed model determines its type and extracts the appropriate fields -- all in a single API call.
+
+Composed models can include up to 200 component models. Each component model retains its independent identity, so you can update one component without retraining the others.
+
+// Graphic G8.2: Prebuilt vs. custom Document Intelligence spectrum showing prebuilt models on one end (zero training, fixed schemas), the Layout model in the middle, and custom models on the other end (training required, flexible schemas), with decision criteria between each level
+image::ch08/g8-2-prebuilt-vs-custom-spectrum.png[Prebuilt vs. Custom Document Intelligence Spectrum]
+
+=== 8.3.4 Evaluating Custom Model Accuracy
+
+Document Intelligence reports accuracy at the field level. For each labeled field, the service reports:
+
+* **Accuracy** -- the percentage of test documents where the field was correctly extracted.
+* **Confidence scores** on individual extractions -- indicating the model's certainty for each document.
+
+High overall accuracy with occasional low-confidence extractions is expected and manageable through human-in-the-loop review. Low overall accuracy on a specific field indicates a training data problem -- typically insufficient variation in the training samples for that field's appearance.
+
+When evaluating, pay particular attention to fields that are critical for your workflow. A surgical consent form model with 98% accuracy on ProcedureName and SurgeonName but 72% accuracy on AnesthesiaType needs more training examples that vary in how anesthesia type is written -- printed vs. handwritten, abbreviated vs. spelled out, checked from a list vs. written in a blank.
+
+=== 8.3.5 When to Invest in Custom vs. Prebuilt with Post-Processing
+
+Building a custom model requires labeling effort, training iteration, and ongoing maintenance as document formats evolve. Before committing to a custom model, consider whether a prebuilt model with post-processing logic can achieve your goals.
+
+The **Layout model plus custom parsing** approach uses the Layout model to extract tables, key-value pairs, and text, then applies your own code to map the extracted structure to your field schema. This works well when your document has a consistent structure that the Layout model captures reliably, and your mapping logic is straightforward.
+
+A custom model is the better investment when documents vary significantly in layout, when the extraction logic is too complex for rule-based parsing, when you need confidence scores at the field level for human-in-the-loop workflows, or when you want the model to improve with additional training rather than requiring code changes for each new layout variation.
+
+== 8.4 Azure AI Search Fundamentals
+
+Document Intelligence solves the extraction problem -- getting structured data out of individual documents. But Piedmont Health Partners also needs to make its entire document archive searchable. This is where **Azure AI Search** enters the picture.
+
+=== 8.4.1 What Azure AI Search Provides
+
+Azure AI Search is a fully managed search service that provides full-text search, faceted navigation, filtering, sorting, and AI-powered semantic ranking over your content. You define an index that describes the structure of your searchable data, load documents into that index, and query it using a rich query language.
+
+If you worked through xref:ch02-rag-and-content-safety.adoc[Chapter 2], you have already encountered Azure AI Search as the retrieval backbone for retrieval-augmented generation. In that chapter, you used a search index to find relevant documents and pass them as context to a generative AI model. This chapter explores the search service in greater depth -- its index structure, data ingestion options, query capabilities, and AI enrichment features.
+
+For Piedmont Health Partners, Azure AI Search powers the clinical document search system. Care coordinators, quality improvement analysts, and administrators can search across hundreds of thousands of documents using keywords, phrases, filters, and natural-language questions. The search results are ranked by relevance, filtered by date range or document type, and enriched with AI-extracted metadata that was not present in the original documents.
+
+=== 8.4.2 Index Anatomy: Fields, Types, Attributes
+
+A **search index** is a structured collection of documents optimized for fast querying. Each index is defined by a **schema** that specifies the fields, their data types, and their behaviors.
+
+Fields have data types including `Edm.String` (text), `Edm.Int32` (integer), `Edm.DateTimeOffset` (date/time), `Edm.Boolean`, `Edm.GeographyPoint` (coordinates), and `Collection(Edm.String)` (arrays of strings). Each field also has **attributes** that control its behavior:
+
+* **Searchable** -- the field is included in full-text search queries.
+* **Filterable** -- the field can be used in filter expressions (e.g., `documentType eq 'discharge_summary'`).
+* **Sortable** -- results can be sorted by this field.
+* **Facetable** -- the field can be used for faceted navigation (e.g., showing counts by document type).
+* **Retrievable** -- the field is returned in search results.
+* **Key** -- the unique identifier for each document in the index.
+
+Thoughtful schema design is critical. Making every field searchable, filterable, sortable, and facetable increases index size and slows performance. Assign attributes based on how each field will actually be used in queries and result displays.
+
+// Graphic G8.3: Azure AI Search components showing the relationship between data sources, indexers, skillsets, the search index, and search queries
+image::ch08/g8-3-search-components.png[Azure AI Search Components]
+
+=== 8.4.3 Data Sources
+
+Azure AI Search can pull data from several **data source** types:
+
+* **Azure Blob Storage** -- for documents, images, and unstructured files.
+* **Azure SQL Database** -- for relational data.
+* **Azure Cosmos DB** -- for NoSQL document data.
+* **Azure Table Storage** -- for simple key-value data.
+* **Azure Data Lake Storage Gen2** -- for large-scale data lake scenarios.
+
+For the healthcare system, discharge summaries and lab reports stored as PDFs in Azure Blob Storage are the primary data source. Patient metadata stored in Azure SQL Database supplements the blob data, allowing the index to combine document content with structured patient and encounter information.
+
+=== 8.4.4 Indexers
+
+An **indexer** automates the process of reading data from a data source and populating the search index. Instead of writing code to extract, transform, and load each document, you configure an indexer that handles the pipeline.
+
+Indexers support scheduling -- you can configure them to run once, on a recurring schedule (e.g., every hour), or on demand. They track changes in the data source and process only new or modified documents on subsequent runs, making incremental indexing efficient.
+
+For blob storage data sources, indexers include built-in document cracking -- the ability to extract text and metadata from common file formats including PDFs, Microsoft Office documents, HTML, and plain text. This means you do not need to write separate code to read each file format before indexing.
+
+=== 8.4.5 Search Queries: Simple, Full Lucene, and Semantic Search
+
+Azure AI Search supports three query modes:
+
+**Simple query syntax** covers the most common search patterns. Users type keywords, and the search engine finds documents containing those terms, ranked by relevance. You can use operators like `+` (must include), `-` (must exclude), and `""` (exact phrase). A care coordinator searching for `pneumonia readmission` gets documents containing both terms, ranked by how prominently they appear.
+
+**Full Lucene query syntax** provides advanced operators: field-scoped queries (`diagnosisCode:J18.9`), wildcard matching (`medic*`), fuzzy matching (`pneumona~` to handle typos), proximity search (`"discharge medication"~5` for terms within 5 words of each other), regular expressions, and boosting (`pneumonia^4 readmission` to weight pneumonia matches four times higher).
+
+**Semantic search** uses deep learning models to understand the _meaning_ of the query, not just its keywords. A semantic query for "patients who were sent home too early" can match documents about premature discharge and readmission even if they do not contain the exact phrase. Semantic search is particularly valuable for clinical document search where the same concept may be expressed in many different ways across different providers and document types.
+
+=== 8.4.6 Semantic Ranking
+
+**Semantic ranking** re-ranks the initial search results using a language understanding model. The search engine first retrieves candidate documents using traditional keyword matching, then applies semantic ranking to reorder them based on how well they actually answer the query's intent.
+
+Semantic ranking also generates **captions** -- short extracts from the document that best answer the query -- and **answers** -- direct responses extracted from the document content. For a query like "What medications were prescribed at discharge?", semantic ranking can extract the specific medication list from a discharge summary and present it directly in the search results.
+
+The following code example demonstrates defining an index schema and running a search query using the Azure AI Search Python SDK.
+
+[source,python]
+----
+import os
+from azure.search.documents import SearchClient
+from azure.search.documents.indexes import SearchIndexClient
+from azure.search.documents.indexes.models import (
+    SearchIndex,
+    SimpleField,
+    SearchableField,
+    SearchFieldDataType,
+)
+from azure.core.credentials import AzureKeyCredential
+
+# Authenticate with your Azure AI Search resource
+endpoint = os.environ["AZURE_SEARCH_ENDPOINT"]
+key = os.environ["AZURE_SEARCH_KEY"]
+
+# Define an index schema for clinical documents
+index = SearchIndex(
+    name="clinical-documents",
+    fields=[
+        SimpleField(
+            name="documentId",
+            type=SearchFieldDataType.String,
+            key=True,
+            filterable=True
+        ),
+        SearchableField(
+            name="content",
+            type=SearchFieldDataType.String,
+            analyzer_name="en.microsoft"
+        ),
+        SearchableField(
+            name="patientName",
+            type=SearchFieldDataType.String,
+            filterable=True
+        ),
+        SimpleField(
+            name="documentType",
+            type=SearchFieldDataType.String,
+            filterable=True,
+            facetable=True
+        ),
+        SimpleField(
+            name="serviceDate",
+            type=SearchFieldDataType.DateTimeOffset,
+            filterable=True,
+            sortable=True
+        ),
+        SearchableField(
+            name="diagnoses",
+            type="Collection(Edm.String)",
+            filterable=True,
+            facetable=True
+        ),
+        SearchableField(
+            name="keyPhrases",
+            type="Collection(Edm.String)",
+            filterable=True,
+            facetable=True
+        ),
+    ],
+)
+
+# Create the index
+index_client = SearchIndexClient(
+    endpoint=endpoint,
+    credential=AzureKeyCredential(key)
+)
+index_client.create_or_update_index(index)
+print(f"Index '{index.name}' created.")
+
+# Query the index
+search_client = SearchClient(
+    endpoint=endpoint,
+    index_name="clinical-documents",
+    credential=AzureKeyCredential(key)
+)
+
+# Simple keyword search with filters
+results = search_client.search(
+    search_text="pneumonia readmission",
+    filter="documentType eq 'discharge_summary'",
+    order_by=["serviceDate desc"],
+    select=["documentId", "patientName", "serviceDate", "diagnoses"],
+    top=10,
+    include_total_count=True
+)
+
+print(f"Total matching documents: {results.get_count()}")
+for result in results:
+    print(f"  {result['patientName']} - {result['serviceDate']} "
+          f"(score: {result['@search.score']:.2f})")
+    print(f"    Diagnoses: {', '.join(result.get('diagnoses', []))}")
+----
+
+[source,json]
+----
+{
+  "search": "patients discharged with antibiotic prescriptions",
+  "queryType": "semantic",
+  "semanticConfiguration": "clinical-semantic-config",
+  "captions": "extractive",
+  "answers": "extractive",
+  "filter": "serviceDate ge 2026-01-01T00:00:00Z",
+  "top": 5
+}
+----
+
+== 8.5 Knowledge Mining Pipelines
+
+Individually, Document Intelligence extracts fields from single documents and Azure AI Search indexes and queries document collections. **Knowledge mining** combines these capabilities -- and many others -- into an automated pipeline that transforms raw, unstructured content into a searchable, enriched knowledge base.
+
+=== 8.5.1 The Knowledge Mining Pattern: Ingest, Enrich, Explore
+
+Knowledge mining follows a three-stage pattern:
+
+**Ingest.** Raw content flows into the pipeline from a data source. For Piedmont Health Partners, this is an Azure Blob Storage container where scanned documents, PDFs, and images accumulate. The indexer connects to this container and pulls in each document for processing.
+
+**Enrich.** As each document passes through the pipeline, a series of AI skills transform it. OCR extracts text from scanned images. Named entity recognition identifies people, organizations, locations, and medical terms. Key phrase extraction pulls out the main topics. Sentiment analysis gauges the tone of narrative sections. Language detection identifies non-English documents for separate handling. Each skill adds new metadata to the document -- metadata that did not exist in the original file.
+
+**Explore.** The enriched documents land in the search index, where users and applications query them. The AI-generated metadata becomes searchable alongside the original content. A user searching for "Dr. Martinez" finds documents where that name was recognized by NER, even if the original document was a scanned image where "Dr. Martinez" existed only as pixels until OCR and NER processed it.
+
+// Graphic G8.4: Knowledge mining pipeline showing the three stages (ingest, enrich, explore) with specific Azure services at each stage and data flow between them
+image::ch08/g8-4-knowledge-mining-pipeline.png[Knowledge Mining Pipeline]
+
+=== 8.5.2 Skillsets: AI Enrichment Steps Applied During Indexing
+
+A **skillset** is a collection of AI processing steps -- called **skills** -- that the indexer applies to each document during the enrichment stage. Each skill takes input from the document (or from the output of a previous skill), processes it, and produces output that becomes part of the enriched document.
+
+Skillsets are defined as JSON configurations attached to an indexer. When the indexer processes a document, it passes the document through each skill in the skillset, accumulating enrichments. The final enriched document is then mapped to the search index fields using **output field mappings**.
+
+=== 8.5.3 Built-In Skills: Entity Recognition, Key Phrase Extraction, Language Detection, Sentiment, OCR, Image Analysis
+
+Azure AI Search includes a library of **built-in skills** that wrap Azure AI services into the skillset framework:
+
+* **Entity recognition** -- identifies named entities (people, organizations, locations, quantities, dates) in text. This is the same NER capability you studied in xref:ch06-nlp-and-speech.adoc[Chapter 6], packaged as a pipeline skill.
+* **Key phrase extraction** -- extracts the main topics and concepts from text.
+* **Language detection** -- identifies the language of each document or passage.
+* **Sentiment analysis** -- assigns sentiment scores to text passages.
+* **OCR** -- extracts text from images embedded in documents. This connects to the vision capabilities from xref:ch07-computer-vision.adoc[Chapter 7].
+* **Image analysis** -- extracts tags, captions, and descriptions from images within documents.
+* **Text merge** -- combines OCR-extracted text with the document's existing text content.
+* **Text split** -- breaks large documents into smaller chunks for processing by skills that have text length limits.
+
+For the healthcare system, a typical skillset might include OCR (to read scanned pages), text merge (to combine OCR text with existing digital text), entity recognition (to find patient names, medications, and diagnoses), key phrase extraction (to identify topics), and sentiment analysis (to flag complaint letters or negative feedback in patient correspondence).
+
+=== 8.5.4 Custom Skills: Calling Your Own APIs as Enrichment Steps
+
+When the built-in skills do not cover your enrichment needs, you can create **custom skills** that call your own web APIs. A custom skill is defined by an endpoint URL, and the indexer sends each document's data to that endpoint as an HTTP request. Your API processes the data and returns the enrichment results.
+
+For Piedmont Health Partners, a custom skill might call an internal API that maps extracted diagnosis text to standardized ICD-10 codes -- a domain-specific transformation that no built-in skill can perform. Another custom skill might call an Azure Function that applies business rules to classify documents into internal routing categories.
+
+Custom skills follow a standardized request/response format, so any web API that accepts and returns the expected JSON structure can serve as a custom skill. This extensibility is what makes knowledge mining pipelines adaptable to virtually any domain.
+
+=== 8.5.5 The Enrichment Tree: How Skills Transform Documents Through the Pipeline
+
+As skills process a document, they build an **enrichment tree** -- a hierarchical data structure that accumulates all the original content and AI-generated enrichments. The tree starts with the raw document at its root and grows branches as each skill adds its output.
+
+The root node contains the document's original content and metadata. OCR adds a branch with extracted text from images. Entity recognition adds branches for each recognized entity category. Key phrase extraction adds a branch with the extracted phrases. Each skill's output can reference previous skills' outputs as input, creating a processing chain.
+
+Understanding the enrichment tree is essential for writing correct **output field mappings** -- the rules that map enrichment tree nodes to search index fields. If your entity recognition skill writes its output to `/document/content/entities`, your output field mapping must reference that exact path to populate the `entities` field in your search index.
+
+// Graphic G8.5: Enrichment tree visualization showing a sample document as the root, with branches for OCR text, merged text, recognized entities, key phrases, and sentiment scores, and arrows showing how output field mappings connect tree nodes to index fields
+image::ch08/g8-5-enrichment-tree.png[Enrichment Tree Visualization]
+
+=== 8.5.6 Knowledge Store: Projecting Enriched Data into Tables and Blob Storage
+
+The search index is not the only destination for enriched data. A **knowledge store** captures the enrichment outputs and projects them into Azure Storage for use outside the search service.
+
+Knowledge store projections come in three types:
+
+* **Table projections** write enriched data to Azure Table Storage, creating structured tables that you can query with tools like Power BI or Excel. A table projection might create a row for each recognized entity, with columns for entity text, entity type, source document, and confidence score.
+* **Object projections** write enriched documents as JSON blobs to Azure Blob Storage, preserving the full enrichment tree structure.
+* **File projections** write binary content -- such as images extracted from documents -- to blob storage.
+
+For the healthcare quality improvement team, a knowledge store table projection that captures all recognized diagnosis entities across all documents enables trend analysis in Power BI without requiring search queries. They can create charts showing diagnosis frequency over time, geographic distribution of conditions, and seasonal patterns -- all from data that was locked inside unstructured documents before the knowledge mining pipeline processed it.
+
+=== 8.5.7 Debugging Skillsets
+
+Skillset development involves trial and error. A skill might fail on certain documents, produce unexpected output, or map incorrectly to index fields. Azure AI Search provides a **debug session** capability that lets you step through the enrichment pipeline for a single document, inspecting the enrichment tree at each stage.
+
+In a debug session, you can see exactly what input each skill received, what output it produced, and how output field mappings translated enrichments into index fields. This visibility is essential for diagnosing issues like missing entity extractions (the skill's input text was truncated), incorrect field mappings (the enrichment tree path in the mapping does not match the skill's actual output path), or unexpected enrichment results (the skill is working correctly but the source data is not what you expected).
+
+[NOTE]
+====
+Knowledge mining combines services from across the entire course -- OCR from xref:ch07-computer-vision.adoc[Chapter 7], named entity recognition from xref:ch06-nlp-and-speech.adoc[Chapter 6], search indexing from this chapter, and retrieval-augmented generation from xref:ch02-rag-and-content-safety.adoc[Chapter 2] -- into a single automated workflow. This is where everything comes together.
+====
+
+[WARNING]
+====
+Only include skills that produce fields you will actually search or analyze. Each skill adds processing time and cost to every document that flows through the pipeline. A skillset with ten skills that produces four useful index fields is wasteful. Start lean -- add OCR and one or two enrichment skills, verify the results, then expand incrementally. You can always add skills later; removing them after processing thousands of documents wastes the cost already incurred.
+====
+
+== 8.6 Putting It All Together: Multi-Service Solution Architecture
+
+You have now studied Azure AI services across eight chapters: generative AI models, retrieval-augmented generation, content safety, model evaluation, agent development, natural language processing, speech, computer vision, document intelligence, and search. This section steps back to survey the full landscape and discuss how to combine these services into coherent, well-justified solution architectures.
+
+=== 8.6.1 Revisiting the Azure AI Services Landscape with Eight Chapters of Context
+
+In xref:ch05-advanced-agent-patterns.adoc[Chapter 5], you encountered the Azure AI services catalog and learned to categorize services by capability. Now, with eight chapters of hands-on experience, you can evaluate those services with genuine understanding rather than surface-level familiarity.
+
+You know that Azure OpenAI Service provides flexible generative capabilities but at higher per-token costs and variable latency. You know that dedicated services like Azure AI Language, Azure AI Vision, and Document Intelligence provide optimized, lower-cost processing for specific tasks. You know that Azure AI Search provides the retrieval layer that connects stored knowledge to generative models. And you know that agents orchestrate these services into workflows that accomplish complex goals.
+
+This depth of understanding is what separates an effective AI solution architect from someone who simply lists services. You do not just know _what_ each service does -- you know _when_ each service is the right choice, what its limitations are, and how it interacts with other services.
+
+// Graphic G8.6: Multi-service solution architecture template showing how Azure OpenAI, Document Intelligence, Azure AI Search, Azure AI Language, Azure AI Vision, and supporting services (Key Vault, Storage, Monitor) connect in a reference architecture
+image::ch08/g8-6-solution-architecture-template.png[Multi-Service Solution Architecture Template]
+
+=== 8.6.2 Common Integration Patterns
+
+Several integration patterns appear repeatedly across Azure AI solution architectures:
+
+**Document processing pipeline.** Documents arrive in Blob Storage. Document Intelligence extracts structured fields. Extracted data populates a database and triggers downstream workflows. This pattern handles invoice processing, claims intake, and form digitization.
+
+**Knowledge mining with RAG.** Documents are ingested, enriched with AI skills, and indexed in Azure AI Search. A generative AI application uses the search index as its retrieval layer, grounding its responses in your organization's documents. This pattern powers enterprise knowledge bases, customer support systems, and research assistants.
+
+**Real-time analytics pipeline.** Incoming data -- customer messages, social media posts, support tickets -- flows through Azure AI Language for entity extraction, sentiment analysis, and classification. Results are stored and visualized in dashboards. This pattern supports customer experience monitoring and brand sentiment tracking.
+
+**Multimodal processing.** Content that includes both text and images passes through Azure AI Vision for image analysis and OCR, Azure AI Language for text analytics, and Azure OpenAI for generative summarization or question answering. This pattern handles scenarios like insurance claim processing where a single submission includes photographs, typed descriptions, and handwritten notes.
+
+=== 8.6.3 Design Tradeoff Categories
+
+Every architecture decision involves tradeoffs. The four most common tradeoff categories in Azure AI solutions are:
+
+**Accuracy vs. cost.** A custom model typically delivers higher accuracy for domain-specific tasks, but it requires training data investment, compute costs for training, and ongoing maintenance. A prebuilt model costs less to implement but may require post-processing to achieve acceptable accuracy. The right choice depends on the accuracy requirements of your specific use case and the cost of errors.
+
+**Latency vs. capability.** Generative AI models provide flexible, nuanced responses but with higher latency per request. Dedicated AI services return structured results faster. When a user is waiting for a real-time response, latency matters. When a batch pipeline processes documents overnight, capability matters more.
+
+**Custom vs. prebuilt.** This tradeoff appears in every Azure AI service family. Custom models fit your domain precisely but require labeled data, training iteration, and version management. Prebuilt models work immediately but make assumptions about your data that may not hold. The decision framework from xref:ch06-nlp-and-speech.adoc[Chapter 6] and xref:ch07-computer-vision.adoc[Chapter 7] applies here as well: start prebuilt, evaluate, and customize only where needed.
+
+**Complexity vs. maintainability.** Adding more services to an architecture increases its capabilities but also increases its operational complexity -- more endpoints to monitor, more credentials to manage, more failure points to handle. A simpler architecture with fewer services is easier to deploy, debug, and maintain.
+
+=== 8.6.4 Justifying Design Decisions: The "Why" Matters More Than the "What"
+
+In professional practice and in this course's capstone project, stating _what_ services you chose is insufficient. You must explain _why_ you chose them. A strong design justification follows a four-part structure:
+
+1. **Problem** -- What specific capability does the solution need?
+2. **Options** -- What Azure AI services could provide that capability?
+3. **Choice** -- Which service did you select?
+4. **Reasoning** -- Why is this service the best fit, and why are the alternatives less suitable?
+
+For example: "The solution needs to extract structured fields from insurance claim forms (problem). Both Document Intelligence prebuilt models and the Layout model with custom parsing could handle this (options). We chose the prebuilt insurance model (choice) because it provides labeled fields with confidence scores out of the box, requires no training data, and covers the specific fields our workflow needs. The Layout model would require us to write and maintain custom parsing logic for each field, adding development and maintenance cost without improving accuracy for this standard document type (reasoning)."
+
+This level of justification demonstrates genuine understanding of the services and their tradeoffs. It shows that you considered alternatives and made a deliberate, informed choice.
+
+=== 8.6.5 Architecture Documentation
+
+A well-documented architecture includes:
+
+* **Architecture diagram** showing services, data flows, and integration points.
+* **Service selection justification** for each service in the architecture, following the problem-options-choice-reasoning structure.
+* **Data flow description** explaining how information moves through the system from input to output.
+* **Responsible AI considerations** addressing fairness, transparency, privacy, and safety for the specific use case.
+* **Operational plan** covering monitoring, error handling, scaling, and cost management.
+
+The next section maps these components to the capstone project deliverables.
+
+[IMPORTANT]
+====
+A well-justified three-service architecture scores higher than a shallow seven-service one. Depth of reasoning demonstrates understanding; breadth without justification demonstrates only awareness. Include only the services your solution genuinely needs, and explain why each one earned its place.
+====
+
+== 8.7 Capstone Preparation: From Proposal to Design Document
+
+In xref:ch05-advanced-agent-patterns.adoc[Chapter 5], you wrote a capstone proposal identifying a real-world problem and sketching an Azure AI solution. Now you expand that proposal into a full **technical design document** -- a comprehensive artifact that demonstrates your ability to architect, justify, and communicate a multi-service AI solution.
+
+=== 8.7.1 Expanding the Week 5 Proposal into a Full Technical Design
+
+Your proposal identified a problem, listed potential services, and outlined a high-level approach. The design document transforms that outline into a detailed, justified architecture. Think of the proposal as the elevator pitch and the design document as the engineering blueprint.
+
+The transformation requires you to make every vague statement concrete. "The solution will use Azure AI Language" becomes "The solution uses Azure AI Language's named entity recognition to extract product names, defect types, and production line identifiers from quality inspection reports, because these entities follow standard NER categories and do not require custom model training." Every service selection gains a justification. Every design choice gains a tradeoff analysis.
+
+=== 8.7.2 Required Components Checklist
+
+Your technical design document must include the following components:
+
+1. **Executive Summary** -- A one-paragraph overview of the problem and solution for a non-technical audience.
+2. **Problem Statement** -- A clear description of the business problem, including who is affected, what the current process looks like, and why AI is appropriate.
+3. **Solution Architecture** -- A diagram and narrative description of the overall system design, showing all Azure AI services and how they connect.
+4. **Service Selection Justification** -- For each Azure AI service in your architecture, a problem-options-choice-reasoning justification (Section 8.6.4).
+5. **Design Tradeoffs** -- An explicit discussion of at least three tradeoffs you navigated, explaining what you gained and what you sacrificed with each decision.
+6. **Responsible AI Considerations** -- An analysis of fairness, transparency, privacy, reliability, and safety concerns specific to your solution, with mitigation strategies.
+7. **Implementation Roadmap** -- A phased plan showing which components you would build first and why, including dependencies between phases.
+8. **References** -- Citations to Azure documentation, course materials, and lab exercises that support your design decisions.
+
+// Graphic G8.7: Design justification structure showing the four-part pattern (problem, options, choice, reasoning) with a sample justification for a Document Intelligence service selection
+image::ch08/g8-7-design-justification-structure.png[Design Justification Structure]
+
+=== 8.7.3 Writing Design Justifications: Problem, Options, Choice, Reasoning
+
+The strongest design documents demonstrate a clear decision-making process for every service selection. Use the four-part structure consistently:
+
+**Problem.** State the specific capability need. Be concrete: "The system must extract vendor names, invoice numbers, and line item details from PDF invoices submitted by 47 different suppliers."
+
+**Options.** List the viable Azure AI services. Be honest about alternatives: "Document Intelligence prebuilt invoice model, Document Intelligence Layout model with custom parsing, or Azure OpenAI with a structured output prompt."
+
+**Choice.** State your selection: "We selected the Document Intelligence prebuilt invoice model."
+
+**Reasoning.** Explain why: "The prebuilt model covers all required fields for standard invoices, provides field-level confidence scores for human-in-the-loop review, and requires no training data. The Layout model would require custom parsing logic for each supplier's format. Azure OpenAI could extract the data but lacks the confidence scores needed for our review workflow and would cost significantly more at our volume of 2,000 invoices per month."
+
+=== 8.7.4 The Recorded Walkthrough: Presenting Architecture in 5-7 Minutes
+
+The recorded walkthrough is a 5-7 minute video where you present your architecture, explain your design decisions, and demonstrate your understanding of the services and tradeoffs. This is not a script reading -- it is a professional presentation where you walk through your architecture diagram and explain your thinking.
+
+**Structure your walkthrough:**
+
+* **Minutes 1-2:** Problem statement and solution overview. What problem are you solving and for whom? What is the high-level architecture?
+* **Minutes 2-4:** Service walkthrough. Walk through each service in your architecture, explaining what it does in your solution and why you chose it over alternatives.
+* **Minutes 4-6:** Design tradeoffs and responsible AI. Discuss the key tradeoffs you navigated and the responsible AI considerations you addressed.
+* **Minutes 6-7:** Implementation roadmap and conclusion. How would you phase the implementation, and what are the most critical risks?
+
+Practice your walkthrough before recording. A confident, clear delivery demonstrates mastery of the material far more effectively than a rushed or hesitant one.
+
+=== 8.7.5 Common Capstone Pitfalls
+
+**Pitfall 1: Listing services without justification.** "The solution uses Azure OpenAI, Document Intelligence, Azure AI Search, Azure AI Language, and Azure AI Vision" without explaining why each is needed. Every service must earn its place.
+
+**Pitfall 2: Ignoring tradeoffs.** Presenting your architecture as the only possible approach. Strong design documents acknowledge alternatives and explain why they were not selected.
+
+**Pitfall 3: Vague responsible AI discussion.** "The solution will be fair and transparent" without specifics. Name the concrete risks -- what could go wrong with your specific solution, and what specific mitigations do you implement?
+
+**Pitfall 4: Overcomplicating the architecture.** Including services you do not understand deeply just to appear comprehensive. It is better to design a focused solution with three well-justified services than a sprawling one with seven poorly understood services.
+
+**Pitfall 5: Disconnecting from labs and course content.** Your design should demonstrate the skills you built through hands-on practice. Reference specific labs and course concepts to show that your architecture is grounded in practical experience.
+
+[TIP]
+====
+Reference specific labs in your design document to strengthen your justifications. For example: "We selected the prebuilt invoice model based on experience in Lab 24, where prebuilt extraction achieved 95%+ accuracy on standard invoice formats without custom training." Connecting design decisions to hands-on experience demonstrates practical understanding.
+====
+
+== 8.8 Hands-On Connections
+
+This chapter's labs give you direct experience with document intelligence, content understanding, and knowledge mining. Together, they complete the hands-on skill set you need for the capstone project.
+
+**Lab 22: Multimodal Content.** You will work with multimodal content that combines text, images, and structured data. This lab reinforces the concept that real-world AI solutions must handle multiple content types simultaneously -- the same challenge Piedmont Health Partners faces with its mixed-format document intake. Pay attention to how different content types require different processing approaches and how the results can be combined into a unified output.
+
+**Lab 23: Content Understanding Client.** You will use a content understanding client to analyze documents that combine text and visual elements. This lab bridges the vision capabilities from xref:ch07-computer-vision.adoc[Chapter 7] and the document processing concepts from this chapter. Notice how the client handles the complexity of multi-format content behind a unified API.
+
+**Lab 24: Prebuilt Document Intelligence.** You will use prebuilt Document Intelligence models to extract structured fields from invoices and other standard document types. This lab is the hands-on counterpart to Section 8.2. Experiment with different document qualities -- clean digital PDFs, scanned images, and photographs -- and observe how confidence scores vary with input quality. Use the results to understand when prebuilt models are sufficient and when custom models might be needed.
+
+**Lab 25: Custom Document Intelligence (Optional).** You will create a custom Document Intelligence model by labeling sample documents, training the model, and evaluating its accuracy. This lab supports Section 8.3. Focus on how the number and variety of training samples affect field-level accuracy, and practice the iterative cycle of labeling, training, evaluating, and refining.
+
+**Lab 26: Knowledge Mining.** You will build a knowledge mining pipeline with Azure AI Search, configuring a data source, skillset, indexer, and index. This lab brings Section 8.5 to life. You will define skills, configure output field mappings, run the indexer, and query the enriched index. Pay particular attention to how the enrichment tree structure maps to your index fields -- this is where most pipeline configuration errors occur.
+
+== 8.9 Key Terms
+
+Azure AI Document Intelligence:: A cloud service that extracts structured data -- fields, tables, key-value pairs -- from documents using prebuilt and custom models, going beyond raw OCR to provide semantic understanding of document content.
+
+prebuilt model:: A Document Intelligence model trained on large datasets of a common document type (invoice, receipt, ID document, W-2, health insurance card, business card) that works without custom training.
+
+custom extraction model:: A Document Intelligence model trained on your own labeled documents to extract fields specific to your document type and domain.
+
+composed model:: A Document Intelligence model that combines multiple custom models behind a single endpoint, automatically classifying incoming documents and routing them to the appropriate extraction model.
+
+template model:: A custom Document Intelligence model designed for documents with fixed layouts where fields consistently appear in the same positions.
+
+neural model:: A custom Document Intelligence model designed for documents with variable layouts where fields may appear in different positions across document instances.
+
+Layout model:: A general-purpose Document Intelligence model that extracts structural elements -- tables, key-value pairs, selection marks, paragraphs, and sections -- without mapping to document-type-specific fields.
+
+confidence score:: A numeric value between 0 and 1 indicating how certain a model is about an extracted field, used to determine whether to accept the extraction automatically or flag it for human review.
+
+Azure AI Search:: A fully managed cloud search service that provides full-text search, filtering, faceted navigation, and AI-powered semantic ranking over structured and unstructured content.
+
+search index:: A structured collection of documents optimized for fast querying, defined by a schema that specifies fields, data types, and attributes (searchable, filterable, sortable, facetable, retrievable).
+
+indexer:: An Azure AI Search component that automates reading data from a data source, applying skillset enrichments, and populating the search index on a configurable schedule.
+
+semantic ranking:: A search capability that uses deep learning language models to re-rank results based on meaning and intent rather than keyword frequency, improving relevance for natural-language queries.
+
+knowledge mining:: A pattern that combines ingestion, AI enrichment, and search to transform unstructured content into a searchable, structured knowledge base.
+
+skillset:: A collection of AI processing steps (skills) attached to an indexer that enrich documents with AI-generated metadata during the indexing process.
+
+built-in skill:: A pre-packaged AI enrichment step provided by Azure AI Search, such as entity recognition, key phrase extraction, OCR, or sentiment analysis.
+
+custom skill:: A user-defined enrichment step that calls an external web API during the indexing pipeline, enabling domain-specific transformations not covered by built-in skills.
+
+enrichment tree:: A hierarchical data structure built during skillset processing that accumulates original content and all AI-generated enrichments, used for mapping enriched data to index fields.
+
+knowledge store:: A feature that projects enriched data from the indexing pipeline into Azure Storage (tables, objects, or files) for analysis and consumption outside the search service.
+
+output field mapping:: A configuration rule that maps a specific node in the enrichment tree to a field in the search index, connecting skillset outputs to searchable index fields.
+
+human-in-the-loop:: A workflow pattern where AI handles high-confidence extractions automatically while routing low-confidence results to human reviewers for verification, balancing automation speed with data quality.
+
+== 8.10 Chapter Summary & Course Conclusion
+
+This chapter introduced Azure AI Document Intelligence and Azure AI Search -- two services that transform unstructured documents into structured, searchable knowledge. You learned how prebuilt Document Intelligence models extract labeled fields from common document types like invoices, receipts, and insurance cards, and how custom models extend that capability to domain-specific documents that no prebuilt model covers. You explored the Layout model for extracting tables, key-value pairs, and selection marks from documents with any structure.
+
+Azure AI Search provided the framework for making document collections searchable. You learned how indexes, indexers, and query modes work together to support keyword search, full Lucene queries, and semantic search. Knowledge mining pipelines combined these capabilities with AI enrichment skills -- entity recognition, key phrase extraction, OCR, and custom skills -- to automatically transform raw documents into richly annotated, searchable content.
+
+The multi-service architecture section asked you to step back and think holistically about Azure AI solution design. You revisited the services from across all eight chapters and learned to evaluate design tradeoffs -- accuracy vs. cost, latency vs. capability, custom vs. prebuilt, complexity vs. maintainability -- and to justify your choices with structured reasoning.
+
+=== Course Arc: From a Single Model to Multi-Service Solutions
+
+Take a moment to appreciate how far you have come. In xref:ch01-generative-ai-foundations.adoc[Chapter 1], you deployed your first Azure OpenAI model and sent your first chat completion request. That was eight weeks ago. Since then, you have built retrieval-augmented generation systems that ground AI responses in your own data (xref:ch02-rag-and-content-safety.adoc[Chapter 2]). You have evaluated model performance with quantitative metrics and designed content safety guardrails (Chapter 3). You have built AI agents that use tools to interact with external systems (Chapter 4) and connected those agents through standardized protocols and multi-agent architectures (xref:ch05-advanced-agent-patterns.adoc[Chapter 5]). You have extracted structured information from unstructured text and speech (xref:ch06-nlp-and-speech.adoc[Chapter 6]) and from images (xref:ch07-computer-vision.adoc[Chapter 7]). And in this chapter, you have combined document intelligence, search, and knowledge mining into automated pipelines that make entire document collections intelligent.
+
+You started by calling a single API. You are now designing multi-service architectures that combine generative models, dedicated AI services, search infrastructure, and responsible AI guardrails into coherent solutions. That progression -- from consumer of a single service to architect of integrated systems -- is the core learning journey of this course.
+
+=== AI-102 Certification Connection
+
+The concepts and services covered in this course align closely with the Microsoft AI-102: Designing and Implementing a Microsoft Azure AI Solution certification exam. The exam tests your ability to plan and manage Azure AI solutions, implement content generation and document intelligence solutions, implement knowledge mining solutions, and implement computer vision and NLP solutions. If you have engaged deeply with the chapters, labs, and assessments in this course, you have built a strong foundation for the certification. Consider pursuing it as a professional credential that validates the skills you have developed.
+
+=== Moving Forward
+
+The field of AI moves fast. The services you learned in this course will evolve -- new models will emerge, new capabilities will be added, and new best practices will develop. But the fundamentals you have learned are durable. The pattern of evaluating prebuilt vs. custom solutions will apply to services that do not yet exist. The discipline of justifying design decisions with structured reasoning will serve you in any technology role. The habit of considering responsible AI implications will become more important, not less, as AI systems grow more powerful and pervasive.
+
+You have built something valuable in this course: not just technical skills, but a way of thinking about AI systems -- how to evaluate them, how to combine them, how to justify your choices, and how to consider their impact on real people. Carry that forward into your careers, your projects, and your continuing education.
+
+The capstone project is your opportunity to demonstrate everything you have learned. Approach it with confidence. You have the knowledge, the hands-on experience, and the analytical framework to design a strong solution. Make it yours.

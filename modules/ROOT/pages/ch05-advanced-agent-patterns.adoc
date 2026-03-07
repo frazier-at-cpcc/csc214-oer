@@ -1,0 +1,616 @@
+= Chapter 5: Advanced Agent Patterns & Frameworks
+
+== Learning Objectives
+
+By the end of this chapter, you will be able to:
+
+. Configure an AI agent to connect to a remote MCP server for external tool access.
+. Compare the Microsoft Agent Framework SDK approach to direct Azure AI Foundry agent APIs.
+. Propose an Azure AI solution for a real-world problem, identifying target users, problem domain, and candidate services.
+
+== 5.1 Introduction: Extending Agents Beyond the Sandbox
+
+In xref:ch04-agent-development.adoc[Chapter 4], you built agents that called tools you defined and deployed alongside your own application code. Every tool -- market data retrieval, regulatory filing search, portfolio calculations -- lived in your codebase, under your control. That is a fine starting point, but production enterprises rarely work this way.
+
+Consider this scenario. A large insurance company wants to build an AI agent that helps claims adjusters process new claims faster. To do its job, the agent needs to access three systems: a CRM maintained by the sales engineering team that stores policyholder information, a ticketing system maintained by the IT operations team that tracks claim status and assignments, and an internal knowledge base maintained by the legal and compliance team that contains policy language, regulatory guidelines, and precedent rulings. Each system is owned by a different team, built on a different technology stack, and governed by a different set of access control policies.
+
+If you applied the approach from Chapter 4 directly, you would need to write and maintain tool definitions and implementation code for every endpoint across all three systems. When the sales engineering team changes their CRM API, your agent code breaks. When the compliance team adds a new document category to the knowledge base, you need to redeploy your agent. When the IT operations team migrates their ticketing system to a new platform, you rewrite your integration from scratch. You become the bottleneck for every upstream change, and your agent's reliability depends on your ability to keep up with three teams' release schedules simultaneously.
+
+This is the tool integration problem at enterprise scale. The tools an agent needs are not static functions you write once and forget. They are living services maintained by teams across the organization, each evolving on its own timeline. The question is not whether your agent can call tools -- you already know how to do that. The question is how your agent discovers, connects to, and interacts with tools it did not create and does not control.
+
+This chapter introduces two complementary solutions to this problem. First, you will learn about the **Model Context Protocol (MCP)**, an open standard that lets agents discover and call tools exposed by external services through a uniform interface. MCP decouples your agent from the implementation details of each tool provider, much like HTTP decoupled web browsers from the implementation details of web servers. Second, you will learn about the **Microsoft Agent Framework SDK**, which provides higher-level abstractions for building agents -- handling the execution loop, message management, and tool orchestration that you wrote manually in Chapter 4.
+
+Together, these two technologies represent the next step in agent development: moving from hand-crafted, tightly coupled tool integrations toward standardized, maintainable, production-grade systems. You will also learn how to scope and propose Azure AI solutions for real-world problems, a skill you will apply in your capstone proposal.
+
+== 5.2 The Model Context Protocol (MCP)
+
+=== 5.2.1 The Problem MCP Solves: Tool Fragmentation
+
+In Chapter 4, you registered tools by writing JSON tool definitions and implementing handler functions in your application code. That approach works when you control both the agent and the tools. But in the insurance company scenario from Section 5.1, the tools belong to other teams. Each team exposes its capabilities through different mechanisms: the CRM team offers a REST API with OAuth 2.0 authentication, the ticketing system uses GraphQL with API key authentication, and the knowledge base provides a proprietary SDK with certificate-based authentication.
+
+Without a standard protocol, you face **tool fragmentation** -- every new tool integration requires custom code for discovery (what tools are available?), authentication (how do I prove I am allowed to call this?), invocation (how do I format the request?), and response handling (how do I parse the result?). If your organization has twenty services and five agent teams, you end up with a hundred bespoke integrations, each a maintenance liability.
+
+The **Model Context Protocol (MCP)** solves this by defining a single, open standard for how agents discover and interact with external tools. Instead of writing custom integration code for each service, you connect your agent to an MCP server, and the server tells the agent what tools are available, what parameters they accept, and how to call them -- using a uniform protocol that works the same way regardless of the underlying service.
+
+=== 5.2.2 MCP Architecture: Agents as Clients, External Services as MCP Servers
+
+The MCP architecture follows a client-server model. Your agent acts as an **MCP client**. Each external service that wants to expose tools to agents runs an **MCP server**. The MCP server wraps the service's native API behind a standardized interface, translating between the MCP protocol and whatever the underlying service actually speaks.
+
+// Graphic G5.1: MCP client-server architecture showing an agent (MCP client) connected to multiple MCP servers, each wrapping a different backend service
+image::ch05/g5-1-mcp-client-server.png[MCP Client-Server Architecture]
+
+In the insurance company scenario, the architecture would look like this. The CRM team deploys an MCP server that wraps their REST API. This server exposes tools like `lookup_policyholder`, `get_policy_details`, and `update_contact_info`. The IT operations team deploys an MCP server that wraps their ticketing system, exposing tools like `create_claim_ticket`, `get_claim_status`, and `assign_adjuster`. The legal and compliance team deploys an MCP server that wraps their knowledge base, exposing tools like `search_policy_language` and `get_regulatory_guideline`.
+
+Your claims processing agent connects to all three MCP servers. From the agent's perspective, these tools look identical -- same protocol, same message format, same invocation pattern. The agent does not know or care that one tool talks to a REST API and another talks to a GraphQL endpoint behind the scenes.
+
+[TIP]
+====
+Think of MCP like a USB port for AI agents -- plug in any tool server and the agent can discover and use its capabilities. Just as USB standardized how peripherals connect to computers, MCP standardizes how tools connect to agents.
+====
+
+=== 5.2.3 The Connection Lifecycle: Discovery, Capability Negotiation, Tool Invocation
+
+An MCP connection follows a structured lifecycle with three phases: initialization, capability negotiation, and operation.
+
+// Graphic G5.2: MCP connection lifecycle showing the three phases — initialization, capability negotiation, and operation
+image::ch05/g5-2-mcp-connection-lifecycle.png[MCP Connection Lifecycle]
+
+**Phase 1: Initialization.** The MCP client (your agent) establishes a connection to an MCP server. The client sends an `initialize` request that includes the client's protocol version and capabilities. The server responds with its own protocol version and capabilities. This handshake ensures both sides agree on what protocol features they support.
+
+**Phase 2: Capability negotiation.** After initialization, the client queries the server's available capabilities. The most common query is `tools/list`, which returns a list of all tools the server exposes, including their names, descriptions, and parameter schemas. The client can also query for resources (data the server can provide) and prompts (templates the server offers). This phase is where **dynamic tool discovery** happens -- the agent learns what tools are available at runtime rather than having them hardcoded at development time.
+
+**Phase 3: Operation.** With the tool catalog in hand, the agent can invoke tools using `tools/call` requests. Each request specifies the tool name and arguments, and the server returns the result. The agent can make as many tool calls as needed during a session.
+
+=== 5.2.4 Dynamic Tool Discovery
+
+Dynamic tool discovery is one of MCP's most powerful features. In the Chapter 4 approach, your agent's tool list was fixed at development time -- you wrote the tool definitions in your code and deployed them. If a new tool became available, you had to update your code and redeploy.
+
+With MCP, the agent discovers available tools at connection time by calling `tools/list`. This means that when the CRM team adds a new `get_claims_history` tool to their MCP server, your agent automatically discovers it the next time it connects. You do not need to change your agent code. The server's tool list is the source of truth, and it is always current.
+
+Dynamic discovery also enables the agent to adapt to different environments. A development MCP server might expose a limited set of tools with mock data, while a production MCP server exposes the full set with real data. The same agent code works in both environments because it discovers what is available rather than assuming a fixed tool set.
+
+=== 5.2.5 MCP Message Format and Transport
+
+MCP uses **JSON-RPC 2.0** as its message format. Every message -- whether a request, response, or notification -- follows the JSON-RPC specification with a method name, parameters, and an ID for correlating requests with responses.
+
+Here is what a `tools/list` request and response look like:
+
+[source,json]
+----
+// Request: Client asks the server what tools are available
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/list"
+}
+
+// Response: Server returns its tool catalog
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "tools": [
+      {
+        "name": "lookup_policyholder",
+        "description": "Retrieves policyholder information by policy number or customer name. Returns contact details, policy type, coverage limits, and claim history summary.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "policy_number": {
+              "type": "string",
+              "description": "The policy number, e.g., 'POL-2025-00421'."
+            },
+            "customer_name": {
+              "type": "string",
+              "description": "The customer's full name for fuzzy search."
+            }
+          },
+          "required": []
+        }
+      },
+      {
+        "name": "get_claim_status",
+        "description": "Returns the current status and history of a claim by claim ID.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "claim_id": {
+              "type": "string",
+              "description": "The unique claim identifier."
+            }
+          },
+          "required": ["claim_id"]
+        }
+      }
+    ]
+  }
+}
+----
+
+And here is a `tools/call` request and response:
+
+[source,json]
+----
+// Request: Client invokes the lookup_policyholder tool
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "lookup_policyholder",
+    "arguments": {
+      "policy_number": "POL-2025-00421"
+    }
+  }
+}
+
+// Response: Server returns the tool result
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"customer_name\": \"Maria Santos\", \"policy_type\": \"Homeowner\", \"coverage_limit\": 500000, \"status\": \"Active\", \"claims_filed\": 2}"
+      }
+    ]
+  }
+}
+----
+
+MCP supports two **transport mechanisms**. The first is **stdio** (standard input/output), where the MCP server runs as a local subprocess and communicates through stdin and stdout pipes. This transport is ideal for development and local tool servers. The second is **HTTP with Server-Sent Events (SSE)**, where the MCP server runs as a remote web service. The client sends requests via HTTP POST, and the server streams responses and notifications back through SSE. This transport is designed for production deployments where MCP servers run on separate infrastructure.
+
+The choice of transport does not affect the message format -- the JSON-RPC messages are identical regardless of whether they travel over stdio or HTTP. This separation of concerns means you can develop and test with stdio locally and deploy with HTTP/SSE in production without changing your tool invocation logic.
+
+=== 5.2.6 Security Considerations
+
+MCP connections cross trust boundaries, and security must be addressed at multiple layers. **Authentication** verifies the identity of the client connecting to the MCP server. For HTTP/SSE transport, this typically uses OAuth 2.0 tokens or API keys sent in request headers. For stdio transport, the security boundary is the operating system process model -- only processes that can launch the MCP server subprocess can communicate with it.
+
+**Authorization** controls which tools a given client is allowed to call. An MCP server can restrict tool access based on the client's identity -- for example, allowing the claims agent to call `lookup_policyholder` but not `delete_policy`. This is typically implemented in the MCP server's middleware layer.
+
+**Input validation** is the server's responsibility. The MCP server must validate all arguments received from clients before passing them to the underlying service. An agent might send unexpected parameter values -- whether through model hallucination or adversarial prompting -- and the server must handle these gracefully.
+
+**Transport encryption** protects data in transit. HTTP/SSE connections should always use TLS. Stdio connections are inherently local and do not traverse the network, so transport encryption is not applicable.
+
+[NOTE]
+====
+MCP is an open standard -- the same server can be used by different agent frameworks. An MCP server you build for an Azure AI Foundry agent works equally well with agents built using LangChain, Semantic Kernel, or any other framework that supports the MCP client protocol. This interoperability is one of the protocol's key design goals.
+====
+
+Here is a minimal example of an MCP server that registers a tool and an agent that discovers and calls it:
+
+[source,python]
+----
+# mcp_server.py — A minimal MCP server exposing a claim status tool
+from mcp.server import Server
+from mcp.types import Tool, TextContent
+
+server = Server("claims-server")
+
+@server.tool()
+async def get_claim_status(claim_id: str) -> list[TextContent]:
+    """Returns the current status and assignment for a claim."""
+    # In production, this would query the ticketing system
+    claim_data = {
+        "claim_id": claim_id,
+        "status": "Under Review",
+        "assigned_to": "Adjuster Kim Lee",
+        "filed_date": "2026-02-15",
+        "estimated_resolution": "2026-03-20"
+    }
+    return [TextContent(type="text", text=json.dumps(claim_data))]
+
+# Run the server with stdio transport for local development
+if __name__ == "__main__":
+    import asyncio, json
+    from mcp.server.stdio import stdio_server
+
+    async def main():
+        async with stdio_server() as (read_stream, write_stream):
+            await server.run(read_stream, write_stream)
+
+    asyncio.run(main())
+----
+
+[source,python]
+----
+# agent_client.py — An agent that discovers and calls MCP tools
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
+
+async def run_agent():
+    server_params = StdioServerParameters(
+        command="python",
+        args=["mcp_server.py"]
+    )
+
+    async with stdio_client(server_params) as (read, write):
+        async with ClientSession(read, write) as session:
+            # Phase 1-2: Initialize and discover tools
+            await session.initialize()
+            tools = await session.list_tools()
+
+            print(f"Discovered {len(tools.tools)} tools:")
+            for tool in tools.tools:
+                print(f"  - {tool.name}: {tool.description}")
+
+            # Phase 3: Invoke a tool
+            result = await session.call_tool(
+                "get_claim_status",
+                arguments={"claim_id": "CLM-2026-08842"}
+            )
+            print(f"Result: {result.content[0].text}")
+
+import asyncio
+asyncio.run(run_agent())
+----
+
+This example demonstrates the full lifecycle: the server registers a tool with a typed function signature, and the client discovers it at runtime and invokes it by name. The client never needs to know how the tool is implemented -- it only needs to know the MCP protocol.
+
+== 5.3 Configuring an Agent with Remote MCP Servers
+
+=== 5.3.1 Connecting to a Remote MCP Server from Azure AI Foundry
+
+Azure AI Foundry supports MCP as a tool connection method for agents. When you create an agent in Azure AI Foundry, you can register remote MCP servers alongside locally defined tools. The agent treats both kinds of tools uniformly -- it discovers them, sees their schemas, and calls them using the same reasoning-action loop you learned in xref:ch04-agent-development.adoc[Chapter 4].
+
+To connect an Azure AI Foundry agent to a remote MCP server, you provide the server's endpoint URL and authentication credentials as part of the agent's tool configuration. Here is how this looks using the Azure AI Projects SDK:
+
+[source,python]
+----
+from azure.ai.projects import AIProjectClient
+from azure.identity import DefaultAzureCredential
+from azure.ai.projects.models import OpenApiTool, OpenApiAnonymousAuthDetails
+
+# Create the project client
+project_client = AIProjectClient(
+    credential=DefaultAzureCredential(),
+    endpoint="https://your-project.services.ai.azure.com"
+)
+
+# Configure the MCP server connection
+mcp_tool = OpenApiTool(
+    name="claims_ticketing",
+    description="Claims ticketing system tools via MCP",
+    spec="https://mcp.ticketing.internal.company.com/.well-known/openapi.json",
+    auth=OpenApiAnonymousAuthDetails()
+)
+
+# Create the agent with the remote MCP tool
+agent = project_client.agents.create_agent(
+    model="gpt-4o",
+    name="Claims Processing Assistant",
+    instructions="You help claims adjusters process insurance claims...",
+    tools=[mcp_tool]
+)
+----
+
+Once configured, the agent automatically discovers the tools exposed by the MCP server. When the agent's reasoning loop determines that it needs to check a claim's status, it calls the remote tool just as it would call a local function -- but the execution happens on the remote MCP server.
+
+=== 5.3.2 Handling Latency: Remote Tool Calls Are Slower Than Local Tools
+
+Remote MCP tool calls introduce network latency that local tool calls do not have. A local tool executes in milliseconds. A remote tool call involves an HTTP round trip, server-side processing, and a response -- typically adding hundreds of milliseconds to seconds per call.
+
+This latency matters for the agent's reasoning loop. If the agent makes five sequential tool calls, each taking one second, the total wait time is five seconds before the agent can generate a response. Users notice this delay.
+
+Three strategies help manage remote tool latency. First, **batch when possible** -- if the agent needs data from multiple tools on the same MCP server, some MCP implementations support batch requests that reduce round trips. Second, **set explicit timeouts** -- configure your agent to abandon tool calls that take too long rather than waiting indefinitely. Third, **cache tool results** where appropriate -- if a policyholder's information does not change during a single claims processing session, cache the first lookup result and reuse it.
+
+=== 5.3.3 Error Handling for Remote Tools
+
+Remote tools introduce failure modes that local tools do not have. The MCP server might be unreachable due to a network partition. The server might return an error because the underlying service is down. The connection might time out. The server might return a valid MCP response containing an error message from the backend system.
+
+Your agent needs to handle all of these gracefully. At the transport level, implement retry logic with exponential backoff for transient network failures. At the protocol level, check the MCP response for error codes and messages. At the application level, instruct your agent (through its system prompt) on how to behave when tools fail -- should it inform the user, try an alternative approach, or proceed with partial information?
+
+[source,python]
+----
+async def safe_tool_call(session, tool_name, arguments, max_retries=3):
+    """Call a remote MCP tool with retry logic and error handling."""
+    for attempt in range(max_retries):
+        try:
+            result = await asyncio.wait_for(
+                session.call_tool(tool_name, arguments=arguments),
+                timeout=10.0  # 10-second timeout per attempt
+            )
+            return {"success": True, "data": result.content[0].text}
+        except asyncio.TimeoutError:
+            if attempt < max_retries - 1:
+                await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                continue
+            return {"success": False, "error": "Tool call timed out after retries"}
+        except ConnectionError:
+            return {"success": False, "error": f"Cannot reach MCP server for {tool_name}"}
+        except Exception as e:
+            return {"success": False, "error": f"Tool call failed: {str(e)}"}
+----
+
+=== 5.3.4 When to Use Remote MCP Servers vs. Local Tool Definitions
+
+Not every tool should be remote. Use remote MCP servers when the tool wraps a service maintained by another team, when the tool's implementation changes independently of your agent, or when the tool accesses data that must stay within a particular security boundary (the data never leaves the MCP server's environment -- only the result comes back to your agent).
+
+Use local tool definitions when you control the tool's implementation, when low latency is critical, or when the tool is simple enough that the overhead of an MCP server is not justified. A tool that formats a date or calculates a percentage does not need its own MCP server.
+
+In practice, most production agents use a mix of both. The claims processing agent might define local tools for text formatting and data validation while connecting to remote MCP servers for CRM access, ticket management, and knowledge base search.
+
+[IMPORTANT]
+====
+Remote tools cross trust boundaries -- validate all tool outputs before acting on them. A remote MCP server might return unexpected data formats, stale information, or even malicious content if compromised. Treat remote tool outputs with the same skepticism you would apply to any external API response.
+====
+
+== 5.4 The Microsoft Agent Framework SDK
+
+=== 5.4.1 What the SDK Provides: Higher-Level Abstractions Over Raw API Calls
+
+In xref:ch04-agent-development.adoc[Chapter 4], you built an agent by writing the reasoning-action loop yourself. You manually managed the conversation history, parsed tool call responses, dispatched to handler functions, appended results back to the message list, and called the model again. That manual approach teaches you how agents work at a fundamental level, but it also means you are responsible for every detail: retry logic, error handling, message formatting, token management, and execution flow control.
+
+The **Microsoft Agent Framework SDK** (part of the Azure AI Foundry ecosystem) provides higher-level abstractions that handle these operational details for you. Instead of writing the execution loop, you declare your agent's tools and behavior, and the SDK manages the rest. Think of it as the difference between writing raw HTTP requests and using a web framework -- the underlying mechanics are the same, but the framework handles the boilerplate.
+
+=== 5.4.2 SDK Architecture: Agents, Tools, Memory, and Orchestration
+
+The SDK organizes agent development around four core concepts.
+
+**Agents** are the central abstraction. An agent has a model, a system prompt (called instructions), and a set of tools. You create an agent by specifying these components, and the SDK handles instantiation and lifecycle management.
+
+**Tools** in the SDK can be local function definitions (similar to Chapter 4), MCP server connections, Azure AI Search indexes, file search capabilities, or code interpreter sessions. The SDK normalizes these different tool types behind a unified interface -- your agent interacts with all tools through the same mechanism.
+
+**Memory** refers to conversation history and thread management. The SDK provides a thread abstraction that persists conversation history, tool call results, and agent reasoning across multiple interactions. You do not need to manually manage the message list as you did in Chapter 4.
+
+**Orchestration** is the execution engine. When you send a message to an agent, the SDK's orchestration layer runs the reasoning-action loop: it sends the message to the model, checks if the model wants to call tools, executes those tools, returns results to the model, and repeats until the model produces a final text response. This is the same loop you implemented manually in Chapter 4, but the SDK handles it internally.
+
+// Graphic G5.3: SDK vs. direct API comparison showing the layers of abstraction the SDK provides over raw API calls
+image::ch05/g5-3-sdk-vs-direct-api.png[SDK vs. Direct API Comparison]
+
+=== 5.4.3 Building an Agent with the SDK
+
+Building an agent with the SDK follows a declarative pattern: define the agent, create a conversation thread, send a message, and process the response. The SDK handles the execution loop internally.
+
+Here is the same financial research agent from xref:ch04-agent-development.adoc[Chapter 4] rebuilt using the Azure AI Projects SDK:
+
+[source,python]
+----
+from azure.ai.projects import AIProjectClient
+from azure.identity import DefaultAzureCredential
+from azure.ai.projects.models import FunctionTool, ToolSet
+
+# Define tool functions
+def get_stock_price(ticker: str) -> str:
+    """Retrieves the current stock price for a given ticker symbol."""
+    # In production, this calls a market data API
+    prices = {"AAPL": 245.12, "MSFT": 478.55, "GOOGL": 192.30}
+    price = prices.get(ticker.upper(), None)
+    if price:
+        return json.dumps({"ticker": ticker, "price": price, "currency": "USD"})
+    return json.dumps({"error": f"Unknown ticker: {ticker}"})
+
+def search_regulatory_filings(company_name: str, filing_type: str = None) -> str:
+    """Searches SEC filings for a given company."""
+    # In production, this queries the EDGAR database
+    return json.dumps({
+        "results": [
+            {"title": f"{company_name} Annual Report",
+             "type": filing_type or "10-K",
+             "date": "2025-12-15"}
+        ]
+    })
+
+# Create the project client
+project_client = AIProjectClient(
+    credential=DefaultAzureCredential(),
+    endpoint="https://your-project.services.ai.azure.com"
+)
+
+# Register tools with the SDK
+functions = FunctionTool(functions=[get_stock_price, search_regulatory_filings])
+toolset = ToolSet()
+toolset.add(functions)
+
+# Create the agent
+agent = project_client.agents.create_agent(
+    model="gpt-4o",
+    name="Financial Research Assistant",
+    instructions="""You are a financial research assistant for Meridian Capital
+    Advisors. Use your tools to retrieve factual data. Do not fabricate stock
+    prices or financial figures. If a tool fails, inform the user.""",
+    toolset=toolset
+)
+
+# Create a conversation thread and send a message
+thread = project_client.agents.create_thread()
+message = project_client.agents.create_message(
+    thread_id=thread.id,
+    role="user",
+    content="What is Apple's current stock price, and do they have any recent 10-K filings?"
+)
+
+# Run the agent — the SDK handles the entire execution loop
+run = project_client.agents.create_and_process_run(
+    thread_id=thread.id,
+    agent_id=agent.id
+)
+
+# Retrieve the agent's response
+if run.status == "completed":
+    messages = project_client.agents.list_messages(thread_id=thread.id)
+    for msg in messages.data:
+        if msg.role == "assistant":
+            print(msg.content[0].text.value)
+----
+
+Compare this with the Chapter 4 implementation. In Chapter 4, you wrote a `while` loop that checked `finish_reason`, parsed `tool_calls`, dispatched to handler functions, appended tool results to the message list, and called the model again. Here, `create_and_process_run` does all of that internally. You define the tools, send a message, and get a response.
+
+[TIP]
+====
+Compare Lab 07 (direct API) with Lab 09 (SDK) -- the SDK handles the execution loop, retry logic, and message formatting you wrote manually. Notice how the SDK version has no `while` loop, no manual message management, and no tool dispatch code. The trade-off is less visibility into each step of the execution.
+====
+
+=== 5.4.4 Built-in Capabilities: Conversation History Management, Structured Output, Tool Chaining
+
+Beyond the basic execution loop, the SDK provides several capabilities that would require significant custom code to replicate with the direct API.
+
+**Conversation history management.** The SDK's thread abstraction automatically maintains the full conversation history, including all tool calls and results. You do not need to track the message list yourself. The thread persists across multiple runs, so you can build multi-turn agent conversations without manually managing state.
+
+**Structured output.** The SDK supports response format specifications that constrain the model's output to follow a JSON schema. This is useful when the agent's response needs to be processed by downstream systems rather than displayed to a human.
+
+**Tool chaining.** When the model needs to call multiple tools in sequence -- for example, looking up a policyholder, then checking their claim status, then searching for relevant policy language -- the SDK handles the entire chain automatically. It executes each tool call, feeds the result back to the model, and continues until the model is satisfied. In the direct API approach, you implemented this chain manually in your reasoning-action loop.
+
+**Built-in tool types.** Beyond custom functions, the SDK natively supports Azure AI Search as a tool (for RAG-style document retrieval), a code interpreter tool (for running Python code to perform calculations or generate visualizations), and file search tools (for searching uploaded documents). These built-in tools are pre-integrated and require minimal configuration.
+
+== 5.5 Choosing Your Approach: SDK vs. Direct API
+
+=== 5.5.1 When the SDK Is the Right Choice
+
+The SDK is the right choice when you want to move quickly and your requirements align with the SDK's built-in capabilities. If you need an agent that calls tools, manages conversation threads, and integrates with Azure AI Search or a code interpreter, the SDK gets you there with significantly less code than the direct API approach. The SDK is also the better choice for teams that want a supported, documented abstraction rather than a custom execution loop they must maintain themselves.
+
+The SDK excels when you are building applications that follow standard patterns: a single agent with tools, a conversational interface with persistent threads, or an agent that combines function calling with document search. For these patterns, the SDK's abstractions match the problem well, and fighting the framework would be counterproductive.
+
+=== 5.5.2 When Direct API Access Is Better
+
+Direct API access is the better choice when you need fine-grained control over the execution loop. If you need to implement custom routing logic between multiple models, apply non-standard retry strategies, intercept and modify tool call arguments before execution, or implement a coordination pattern that the SDK does not support natively, the direct API gives you the flexibility the SDK intentionally abstracts away.
+
+Direct API access is also preferable when you need to minimize dependencies. The SDK adds a dependency on the Azure AI Projects library and its transitive dependencies. If you are building a lightweight service or operating in an environment with strict dependency constraints, the direct API -- which requires only the base Azure OpenAI SDK -- may be more appropriate.
+
+Finally, direct API access is valuable for learning. You cannot truly understand what the SDK does for you until you have built the execution loop yourself. This is why xref:ch04-agent-development.adoc[Chapter 4] teaches the manual approach first.
+
+=== 5.5.3 Mixing Approaches
+
+In practice, many production systems mix both approaches. You might use the SDK for your primary agent -- taking advantage of its thread management, built-in tools, and execution loop -- while using direct API calls for specialized components that need custom behavior.
+
+For example, you might build a main orchestrator agent using the SDK but implement a specialized analysis agent using the direct API because it needs a custom execution pattern the SDK does not support. The two agents communicate through shared data stores or message queues, each using the approach that best fits its requirements.
+
+=== 5.5.4 Production Considerations
+
+When choosing between the SDK and direct API for production, consider these factors. **Observability**: the SDK provides higher-level logging and run status tracking, but the direct API gives you more control over what gets logged and how. **Versioning**: the SDK evolves with its own release cycle, which may not align with the underlying API's release cycle. **Cost management**: both approaches consume the same tokens, but the SDK's automatic retry logic and thread management might generate additional API calls that are less visible than in a hand-coded loop. **Testing**: the direct API is generally easier to unit test because you control every step. The SDK's internal orchestration is harder to mock.
+
+== 5.6 Designing Azure AI Solutions: From Concept to Proposal
+
+=== 5.6.1 The Azure AI Services Landscape
+
+Throughout this textbook, you have been working primarily with Azure OpenAI Service and Azure AI Foundry for generative AI and agent development. But Azure's AI capabilities extend far beyond generative models. The Azure AI platform includes a broad set of specialized services, each designed for a specific class of AI problem.
+
+// Graphic G5.4: Azure AI services landscape map showing the major service categories and their relationships
+image::ch05/g5-4-azure-ai-services-landscape.png[Azure AI Services Landscape Map]
+
+**Azure OpenAI Service** provides access to large language models for text generation, summarization, translation, and code generation. **Azure AI Foundry** provides the platform for building and deploying AI agents, managing model deployments, and integrating tools. **Azure AI Language** offers pre-built NLP capabilities including sentiment analysis, key phrase extraction, named entity recognition, and text summarization. **Azure AI Speech** provides speech-to-text, text-to-speech, speech translation, and speaker recognition. **Azure AI Vision** handles image analysis, optical character recognition (OCR), face detection, and custom image classification. **Azure AI Document Intelligence** extracts structured data from documents like invoices, receipts, tax forms, and contracts. **Azure AI Search** provides vector and keyword search with semantic ranking for building RAG solutions.
+
+You will explore each of these services in depth in xref:ch06-nlp-and-speech.adoc[Chapters 6 through 8]. For now, what matters is understanding that real-world AI solutions rarely use a single service. They compose multiple services together -- an agent that uses Azure OpenAI for reasoning, Azure AI Search for document retrieval, Azure AI Document Intelligence for invoice processing, and Azure AI Language for sentiment analysis of customer feedback.
+
+=== 5.6.2 Problem Scoping: Identifying What AI Can Solve vs. What It Cannot
+
+The first step in designing an Azure AI solution is determining whether AI is the right approach. Not every problem benefits from AI, and not every AI-shaped problem benefits from the same type of AI.
+
+AI excels at tasks that involve pattern recognition (classifying images, detecting anomalies), natural language understanding (extracting information from text, answering questions), content generation (writing summaries, generating reports), and decision support (recommending actions based on data). AI struggles with tasks that require perfect accuracy with zero tolerance for error (safety-critical calculations), tasks with insufficient or poor-quality data, tasks that require genuine common sense reasoning about novel situations, and tasks where the cost of AI exceeds the cost of the manual process it replaces.
+
+When scoping a problem, ask three questions. First, what is the manual process today, and where are the bottlenecks? Second, which bottlenecks involve tasks that AI can perform well? Third, what is the cost of AI making a mistake -- and is that cost acceptable?
+
+=== 5.6.3 User-Centered Design
+
+Every AI solution exists to serve users. Before selecting services or designing architecture, you must clearly define who your users are, what they need, and how they will interact with the system.
+
+A solution designed for expert users (like claims adjusters who process hundreds of claims per week) looks different from one designed for occasional users (like customers checking their claim status once a month). Expert users want speed, keyboard shortcuts, and detailed information. Occasional users want simplicity, guidance, and reassurance. Both groups need accuracy, but they define "accuracy" differently -- the adjuster wants precise policy language citations, while the customer wants a clear, jargon-free status update.
+
+Define your target users by role, frequency of use, technical proficiency, and their primary pain points. Then design the AI interaction around their workflow rather than asking them to adapt to the AI's capabilities.
+
+=== 5.6.4 Service Selection: Matching Capabilities to Requirements
+
+Once you have scoped the problem and defined your users, map each requirement to an Azure AI service. Create a requirements matrix that lists each functional requirement alongside the Azure AI service (or services) that can fulfill it.
+
+For the insurance claims processing example, the matrix might look like this: extracting data from claims forms maps to Azure AI Document Intelligence; searching policy documents maps to Azure AI Search; analyzing customer sentiment in complaint emails maps to Azure AI Language; generating summary reports maps to Azure OpenAI Service; converting phone call recordings to text maps to Azure AI Speech; orchestrating the workflow maps to Azure AI Foundry agents.
+
+Not every requirement needs its own service. Some requirements can be fulfilled by a single model with the right prompt. Others genuinely need a specialized service that has been trained for that specific task. The goal is to use the minimum number of services that covers your requirements well -- each additional service adds integration complexity, cost, and operational burden.
+
+=== 5.6.5 Feasibility Assessment
+
+Before committing to a design, assess its feasibility across four dimensions. **Technical feasibility**: can the selected services actually perform the required tasks at the required accuracy level? Run proof-of-concept tests with representative data. **Data feasibility**: do you have access to the data the services need? Is the data in a usable format? Are there privacy or compliance constraints? **Operational feasibility**: can your team deploy, monitor, and maintain the solution? Do you have the necessary Azure subscriptions, quotas, and expertise? **Economic feasibility**: does the cost of the AI solution justify the value it provides? Calculate the per-transaction cost and compare it to the cost of the manual process.
+
+// Graphic G5.5: Capstone proposal scoping decision tree showing how to narrow from a broad problem to a feasible AI solution
+image::ch05/g5-5-capstone-scoping-decision-tree.png[Capstone Proposal Scoping Decision Tree]
+
+[IMPORTANT]
+====
+A well-scoped proposal with three services is stronger than an ambitious proposal with ten. Each service you include should have a clear justification tied to a specific user need. If you cannot explain why a service is necessary in one sentence, remove it from your proposal.
+====
+
+== 5.7 Hands-On Connections
+
+This chapter's concepts connect to two lab experiences that let you apply what you have learned in working Azure environments.
+
+=== Lab 08c: Configuring an Agent with an MCP Server
+
+In Lab 08c, you will configure an agent to connect to a remote MCP server and invoke tools exposed by that server. Focus on these aspects as you work through the lab:
+
+* **Discovery.** Observe the tool discovery process. When your agent connects to the MCP server, what tools does it find? How do the tool names and descriptions compare to what you would write manually?
+* **Invocation.** Call a tool through the MCP connection and examine the request and response. How does the JSON-RPC message format compare to the direct tool calling approach from Chapter 4?
+* **Latency.** Time your remote tool calls and compare them to local tool calls. How much latency does the network round trip add? How does this affect the user experience?
+* **Error handling.** Deliberately disconnect the MCP server or send invalid parameters. How does your agent respond? Does it degrade gracefully?
+
+=== Lab 09: Building with the Agent Framework SDK
+
+In Lab 09, you will rebuild an agent using the Microsoft Agent Framework SDK. This lab is designed to be a direct comparison with Lab 07, where you built an agent using the direct API. Focus on:
+
+* **Code comparison.** How many lines of code does the SDK version require compared to the direct API version? What code did you write in Lab 07 that the SDK now handles for you?
+* **Thread management.** Create a multi-turn conversation and observe how the SDK manages the conversation thread. How does this compare to manually managing the message list?
+* **Built-in tools.** Experiment with the SDK's built-in tools (code interpreter, file search) in addition to your custom function tools. How does the SDK normalize these different tool types?
+* **Debugging.** When something goes wrong in the SDK version, how do you debug it? Is it easier or harder to diagnose issues compared to the direct API approach where you controlled every step?
+
+== 5.8 Assessment Preparation
+
+This chapter connects to two assessments that apply the design and analysis skills you have developed throughout Chapters 1 through 5.
+
+=== Capstone Proposal
+
+The capstone proposal is a one-page document (approximately 400-600 words) in which you propose an Azure AI solution for a real-world problem. The proposal has four required components.
+
+**Problem domain.** Define the problem your solution addresses. What is the current pain point? Who experiences it? Why does the current process need improvement? Be specific -- "customer service is slow" is a symptom, not a problem definition. Dig deeper: what makes it slow? Where in the process do delays occur? What information is missing or hard to find?
+
+**Target users.** Identify who will use your solution. Describe their role, their technical proficiency, and their primary workflow. How will your AI solution fit into their existing work -- will it replace a step, augment a step, or add a new capability? Think about Section 5.6.3 and user-centered design: what does this user need, and how should the AI present its capabilities?
+
+**Candidate Azure AI services.** Select at least three Azure AI services that your solution will use. For each service, explain what role it plays in your solution and why it is the right choice for that role. Reference the services landscape from Section 5.6.1. Avoid listing services just to hit the minimum -- each service should address a specific, identifiable requirement.
+
+**Initial architecture sketch.** Provide a brief description (or diagram) of how the services connect. Which service handles which part of the workflow? How does data flow between services? Where does the user interact with the system? This does not need to be detailed implementation plans -- it is a conceptual architecture that shows you have thought about how the pieces fit together.
+
+As you develop your proposal, revisit the feasibility assessment criteria from Section 5.6.5. Can the services you selected actually do what you need? Do you have a realistic sense of the data requirements? Is the scope achievable?
+
+=== Peer Review
+
+You will review two classmates' proposals and provide constructive feedback. When reviewing, consider these questions: Is the problem well-defined, or is it too vague? Are the target users clearly identified? Do the selected services match the stated requirements, or are there gaps? Does the architecture make sense -- do the services connect in a logical way? Is the scope realistic for the available Azure AI services?
+
+Effective peer feedback is specific and actionable. Instead of "this is good," explain _why_ it works: "The mapping of invoice processing to Document Intelligence is strong because the service is specifically trained for structured document extraction." Instead of "this needs work," explain _what_ to improve: "The proposal mentions Azure AI Vision but does not explain what images the system would analyze -- adding a specific use case would strengthen this section."
+
+== 5.9 Key Terms
+
+Model Context Protocol (MCP):: An open standard protocol that defines how AI agents discover and interact with external tools through a uniform client-server interface, using JSON-RPC 2.0 messaging.
+
+MCP client:: The agent-side component that connects to MCP servers, discovers available tools, and invokes them on behalf of the agent.
+
+MCP server:: A service that wraps an external system's capabilities behind the MCP protocol, exposing them as discoverable tools that any MCP-compatible agent can call.
+
+tool fragmentation:: The problem of maintaining separate, custom integration code for each external service an agent needs to access, resulting in high maintenance costs and brittle connections.
+
+dynamic tool discovery:: The capability of an agent to learn what tools are available at runtime by querying an MCP server, rather than having tools hardcoded at development time.
+
+JSON-RPC 2.0:: The message format used by MCP for all communication between clients and servers, providing a standardized structure for requests, responses, and notifications.
+
+stdio transport:: An MCP transport mechanism where the client and server communicate through standard input and output streams of a local subprocess, used primarily for development and testing.
+
+HTTP/SSE transport:: An MCP transport mechanism where the client sends requests via HTTP POST and the server streams responses through Server-Sent Events, designed for production remote deployments.
+
+capability negotiation:: The phase of the MCP connection lifecycle in which the client and server exchange information about their supported features and available tools.
+
+Microsoft Agent Framework SDK:: A set of higher-level abstractions provided by Microsoft for building AI agents, handling execution loops, thread management, and tool orchestration over the Azure AI Foundry platform.
+
+thread:: In the Agent Framework SDK, a persistent conversation context that maintains the full history of messages, tool calls, and results across multiple agent interactions.
+
+trust boundary:: A point in a system architecture where data or control passes between components with different levels of trust, requiring validation and security checks at the crossing point.
+
+capstone proposal:: A concise design document that identifies a real-world problem, defines target users, selects candidate Azure AI services, and outlines a solution architecture.
+
+feasibility assessment:: An evaluation of a proposed AI solution across technical, data, operational, and economic dimensions to determine whether the solution can be successfully built and deployed.
+
+== 5.10 Chapter Summary
+
+This chapter extended your agent development skills from hand-crafted, tightly coupled tool integrations to standardized, maintainable approaches suitable for enterprise environments. You learned how the Model Context Protocol provides a uniform interface for agents to discover and call tools exposed by external services, eliminating the tool fragmentation problem that arises when multiple teams maintain multiple services. You walked through the MCP connection lifecycle -- initialization, capability negotiation, and operation -- and saw how JSON-RPC 2.0 messaging over stdio or HTTP/SSE transport enables both local development and remote production deployments.
+
+You then explored the Microsoft Agent Framework SDK, which provides higher-level abstractions over the direct API approach you used in xref:ch04-agent-development.adoc[Chapter 4]. The SDK handles the execution loop, conversation thread management, and tool orchestration, letting you focus on defining your agent's behavior rather than implementing the operational machinery. You compared the two approaches and learned when each is the right choice -- the SDK for standard patterns and rapid development, the direct API for fine-grained control and specialized behavior.
+
+Finally, you learned how to scope and design Azure AI solutions by surveying the Azure AI services landscape, applying problem scoping and user-centered design principles, and mapping requirements to specific services. These skills prepare you for the capstone proposal, where you will identify a real-world problem and design a solution using at least three Azure AI services.
+
+Chapters 1 through 5 have covered the generative AI and agent development arc of this course. Beginning with xref:ch06-nlp-and-speech.adoc[Chapter 6], you will shift focus to specialized Azure AI services -- starting with Natural Language Processing and Speech -- that you can compose with the agent architectures you have built here. The patterns you learned in these first five chapters -- tool calling, execution loops, MCP integration, SDK abstractions -- will serve as the foundation for integrating these specialized services into intelligent, production-grade systems.

@@ -1,0 +1,390 @@
+= Chapter 3: Model Evaluation & Introduction to Agents
+
+== Learning Objectives
+
+By the end of this chapter, you will be able to:
+
+. Apply standard evaluation metrics (groundedness, relevance, coherence, fluency) to assess generative AI model outputs.
+. Distinguish between agent-based architectures and standard chat completion patterns based on task requirements.
+. Interpret evaluation results to recommend model or prompt adjustments.
+
+== 3.1 Introduction: How Do You Know If It's Working?
+
+Your product team has been working for weeks on a customer support chatbot powered by Azure OpenAI. The system uses a RAG pipeline (the architecture you studied in xref:ch02-rag-and-content-safety.adoc[Chapter 2]) to ground responses in your company's knowledge base. The deployment goes live on a Monday morning. By Wednesday, support tickets start rolling in. Customers are complaining that the bot's answers are "off." Some say it gives "weird responses." Others report that the bot "doesn't answer my question." One user writes, simply, "It seems broken."
+
+Your team huddles around a conference table. The product manager pulls up a dozen conversation transcripts. Everyone reads through them and offers opinions. "This response looks fine to me," says one engineer. "I think this one is wrong, but I'm not sure why," says another. The designer points to a response and says, "This sounds robotic." The support lead disagrees: "I think it sounds fine -- the problem is that it's answering a different question than the customer asked."
+
+This is the situation every team encounters when they move from building a generative AI system to operating one. During development, you test a handful of prompts and eyeball the responses. The outputs look reasonable, so you ship. But "looks reasonable" is not a measurement. It is a subjective impression that varies from person to person, changes depending on how carefully you read, and provides no basis for systematic improvement.
+
+The core problem is that generative AI outputs are open-ended text. Unlike a classification model that produces a label you can check against a ground truth, or a regression model that produces a number you can compare to an actual value, a text generation model produces paragraphs of natural language that can be wrong in multiple independent ways. A response can be factually incorrect. It can be factually correct but irrelevant to the question asked. It can be relevant and correct but poorly organized and hard to follow. It can be well-organized and correct but stilted and unnatural. Each of these failure modes is distinct, and each requires a different fix.
+
+This chapter introduces the tools you need to move beyond subjective evaluation. In **Section 3.2**, you will learn four standard metrics -- groundedness, relevance, coherence, and fluency -- that decompose "Is this response good?" into measurable dimensions. In **Section 3.3**, you will learn how to interpret evaluation results and translate them into concrete improvements. Then the chapter shifts direction: in **Sections 3.4 and 3.5**, you will discover that text generation is only part of what modern AI systems can do. You will learn about **AI agents** -- systems that go beyond generating text to taking actions in the world -- and how to decide when an agent architecture is warranted. Finally, **Section 3.6** connects evaluation back to agents, and **Sections 3.7 and 3.8** prepare you for this week's labs and assessments.
+
+== 3.2 Standard Evaluation Metrics for Generative AI
+
+When you evaluate a generative AI model's output, you need a shared vocabulary that breaks "good" and "bad" into specific, measurable dimensions. Azure AI Foundry provides four standard metrics for evaluating text generation quality: **groundedness**, **relevance**, **coherence**, and **fluency**. Each metric captures a different aspect of response quality, and together they provide a comprehensive picture of how well your model is performing.
+
+// Graphic G3.1: Evaluation metrics scorecard showing the four metrics with sample scores
+image::ch03/g3-1-evaluation-scorecard.png[Evaluation Metrics Scorecard]
+
+=== 3.2.1 Groundedness: Does the Response Stay Faithful to Source Documents?
+
+**Groundedness** measures how well a model's response is supported by the source documents provided to it. In a RAG pipeline, this means checking whether every claim in the model's output can be traced back to the retrieved chunks that were included in the prompt. A perfectly grounded response contains no information beyond what the source material provides. An ungrounded response includes fabricated details, unsupported claims, or information drawn from the model's training data rather than the provided context.
+
+This metric is directly connected to the concept of grounding you studied in xref:ch02-rag-and-content-safety.adoc[Chapter 2]. There, you learned how RAG pipelines inject retrieved documents into the prompt to constrain the model's knowledge boundary. Groundedness evaluation measures how effectively that constraint actually works in practice. You might have a well-designed RAG pipeline that retrieves excellent source material, but if the model ignores that material and generates from its own training knowledge, your grounding has failed -- and the groundedness metric will reveal that failure.
+
+Groundedness is typically scored on a scale from 1 to 5, where 1 indicates that the response is entirely unsupported by the source material and 5 indicates that every claim in the response is directly traceable to the provided context. A score of 3 might indicate that some claims are grounded while others appear to come from outside the source material.
+
+Consider an example. Your knowledge base contains a product FAQ that states: "Our premium plan includes 50 GB of storage and priority email support." A user asks, "What does the premium plan include?" If the model responds, "The premium plan includes 50 GB of storage, priority email support, and 24/7 phone support," the response is partially grounded. The storage and email support claims are in the source material, but "24/7 phone support" is fabricated. The groundedness score would reflect this partial failure.
+
+=== 3.2.2 Relevance: Does the Response Actually Address the User's Question?
+
+**Relevance** measures how well the model's response addresses the specific question or task the user presented. A relevant response directly engages with the user's intent and provides information that helps answer their question. An irrelevant response may be factually accurate and well-written but fails to address what the user actually asked.
+
+Relevance failures are surprisingly common in production systems. The model might latch onto a keyword in the user's question and generate a response about a tangentially related topic. A user asks, "How do I cancel my subscription?" and the model responds with a detailed explanation of subscription tiers and pricing -- accurate information, but not what the user wanted. The response is grounded (if the pricing information comes from the source material) and coherent (it is well-organized), but it is not relevant to the user's actual need.
+
+Relevance is also scored on a 1-to-5 scale. A score of 1 means the response has no connection to the user's question. A score of 5 means the response directly and completely addresses the user's question. Intermediate scores reflect partial relevance -- the response addresses part of the question but misses key aspects, or it addresses the right topic but at the wrong level of detail.
+
+Diagnosing relevance problems often points to issues in the retrieval stage of your RAG pipeline. If the retrieved chunks are not relevant to the user's query, the model has no relevant context to work from and is more likely to generate tangential responses. Poor relevance scores should prompt you to examine your retrieval configuration, including your chunking strategy, embedding model, and search approach.
+
+=== 3.2.3 Coherence: Is the Response Logically Organized and Internally Consistent?
+
+**Coherence** measures the logical flow and organizational quality of the model's response. A coherent response presents information in a logical sequence, with ideas that connect naturally to each other and a structure that is easy to follow. An incoherent response may jump between topics, contradict itself, or present information in a confusing order.
+
+Coherence captures the structural quality of the response independent of its factual accuracy. A response can be highly coherent but completely fabricated -- it reads beautifully and follows a clear logical structure, but the content is made up. Conversely, a response can be factually accurate but poorly organized, with relevant information scattered across paragraphs in no particular order.
+
+Coherence problems often emerge when the model is working with multiple retrieved chunks that address different aspects of a question. The model may struggle to synthesize information from several sources into a unified, well-structured response. Instead, it may produce a response that reads like a concatenation of separate paragraphs, each addressing a different chunk, with no transitions or unifying thread.
+
+On the 1-to-5 scale, a score of 1 indicates a response that is confusing, contradictory, or disorganized. A score of 5 indicates a response with clear structure, logical flow, and smooth transitions. Coherence issues typically point to problems with the model's ability to synthesize information, which may be addressed through prompt engineering -- for example, by instructing the model to organize its response with a specific structure.
+
+=== 3.2.4 Fluency: Is the Response Grammatically Correct and Natural-Sounding?
+
+**Fluency** measures the linguistic quality of the model's response -- grammar, word choice, sentence structure, and naturalness. A fluent response reads as if a competent human wrote it. A non-fluent response contains grammatical errors, awkward phrasing, unnatural word choices, or stilted constructions that make it difficult or unpleasant to read.
+
+Of the four metrics, fluency is usually the strongest for modern large language models. These models are trained on vast corpora of well-written text and are generally excellent at producing grammatically correct, natural-sounding prose. When fluency scores are low, the cause is often one of the following: the model is being asked to generate text in a language or domain where its training data is sparse, the temperature setting is too high (producing more random and sometimes less coherent word choices), or the model is struggling to incorporate technical terminology from retrieved chunks into natural-sounding sentences.
+
+Fluency is scored from 1 to 5, where 1 represents text with pervasive grammatical errors or unnatural phrasing and 5 represents text that is indistinguishable from competent human writing. Because modern LLMs tend to score high on fluency, a low fluency score is often a signal of an unusual underlying problem worth investigating.
+
+=== 3.2.5 How the Four Metrics Relate to Each Other
+
+The four metrics are designed to be independent dimensions, but in practice they interact. Understanding these interactions helps you interpret evaluation results more effectively.
+
+Groundedness and relevance are the most closely linked. A response cannot be truly relevant if it is not grounded -- if the model is fabricating information, it is not actually answering the user's question from reliable data, even if the fabricated answer happens to address the right topic. However, a response can be grounded but not relevant: it can faithfully represent information from the source material that does not address the user's question.
+
+Coherence and fluency are also related but distinct. Fluency operates at the sentence level -- is each sentence well-constructed? Coherence operates at the response level -- do the sentences and paragraphs work together to form a logical whole? A response can be fluent sentence by sentence but incoherent overall, jumping between unrelated topics in perfectly grammatical prose.
+
+The most dangerous combination is high fluency and coherence with low groundedness. This is the "confident hallucination" pattern: the model produces a response that reads beautifully, is well-organized, and sounds authoritative -- but the content is fabricated. Users are most likely to trust and act on responses that sound good, which makes ungrounded but fluent responses more harmful than obviously broken ones.
+
+[IMPORTANT]
+====
+A fluent, coherent response can still be dangerously wrong -- groundedness is the safety-critical metric. A model that produces polished, well-organized text filled with fabricated claims is more dangerous than one that produces awkward but accurate text. Always prioritize groundedness over surface-level quality metrics when evaluating responses in production systems.
+====
+
+[TIP]
+====
+When evaluating, check groundedness first; if a response is not grounded, the other metrics are less meaningful. A beautifully written, perfectly relevant, logically organized response that is based on fabricated information is still a failed response. Establish groundedness as your gating metric: only invest time evaluating relevance, coherence, and fluency once you have confirmed that the response is faithful to its source material.
+====
+
+== 3.3 Interpreting Evaluation Results
+
+Knowing what the four metrics measure is the first step. The next step is learning to read evaluation results systematically, diagnose the root causes of weak scores, and translate those diagnoses into specific improvements.
+
+=== 3.3.1 Reading an Evaluation Scorecard: What Patterns to Look For
+
+When you run an evaluation across a set of test queries, you receive a scorecard -- a collection of metric scores for each query-response pair. Rather than examining individual scores in isolation, look for patterns across the full set of results.
+
+// Graphic G3.2: Metric-to-problem diagnostic flowchart showing which low scores point to which system problems
+image::ch03/g3-2-metric-diagnostic-flowchart.png[Metric-to-Problem Diagnostic Flowchart]
+
+**Consistently low scores in a single metric** suggest a systemic problem related to that dimension. If groundedness is consistently low across all test queries, the problem is likely in your grounding strategy -- perhaps the system message does not sufficiently instruct the model to stay within the source material, or the model is overriding the grounding instruction with its own training knowledge. If relevance is consistently low, the retrieval stage may be returning poorly matched chunks.
+
+**Low scores on specific queries but not others** suggest that the problem is query-dependent. Some queries may be well-served by your current chunking and retrieval configuration while others fall through the gaps. These query-specific failures often reveal blind spots in your knowledge base coverage or weaknesses in your embedding model's ability to match certain types of queries to relevant content.
+
+**Correlated drops across multiple metrics** often point to a single upstream problem. If a particular query produces low scores in groundedness, relevance, and coherence simultaneously, the most likely cause is a retrieval failure: the system retrieved irrelevant chunks, and the model struggled to produce a good response from poor source material. When the source material is wrong, everything downstream suffers.
+
+=== 3.3.2 Diagnosing Weak Scores: Which Metric Points to Which Problem
+
+Each metric, when weak, points to a different part of your system that needs attention:
+
+**Low groundedness** points to the grounding stage or the model itself. Check whether the system message includes clear instructions to answer only from provided sources. Verify that the model is not overriding those instructions. Consider lowering the temperature to reduce creative generation. If the model is grounded on most queries but not certain types, examine whether those query types are adequately covered in your knowledge base.
+
+**Low relevance** points to the retrieval stage. Are the retrieved chunks actually relevant to the user's query? Check your embedding model, your chunking strategy, and your top-k parameter. Consider adding re-ranking to improve retrieval precision. Also check whether the user's query is ambiguous -- if the query is vague, even perfect retrieval may return broadly related but not precisely targeted chunks.
+
+**Low coherence** points to the generation stage and prompt design. The model may need clearer instructions about how to structure its response. Consider adding formatting guidance to the system message, such as "Organize your response into clear paragraphs" or "Address each part of the question in order." If the model is receiving many retrieved chunks, it may be struggling to synthesize them -- consider reducing the number of retrieved chunks or using a model with stronger reasoning capabilities.
+
+**Low fluency** points to model selection, temperature settings, or domain mismatch. If the model is producing awkward text, try a different model or adjust the temperature. If the domain involves specialized terminology, ensure the model has been exposed to similar content or provide terminology guidance in the system message.
+
+=== 3.3.3 Recommending Adjustments: Prompt Changes, Parameter Tuning, Pipeline Modifications
+
+Once you have diagnosed the problem, you can recommend specific adjustments:
+
+**Prompt changes** address groundedness and coherence issues. Strengthening the grounding instruction ("Answer ONLY based on the provided documents. If the documents do not contain the answer, say 'I don't have that information.'") can improve groundedness. Adding structural instructions can improve coherence.
+
+**Parameter tuning** addresses fluency and groundedness. Lowering the temperature reduces randomness and tends to improve both fluency and groundedness, at the cost of more repetitive responses. Adjusting the top-k parameter affects how much context the model receives, which impacts all four metrics.
+
+**Pipeline modifications** address relevance and systemic quality issues. Changing your chunking strategy, switching to hybrid search, adding a re-ranking step, or expanding your knowledge base are all pipeline-level changes that can improve evaluation scores across the board.
+
+The following JSON payload shows what evaluation results look like in practice. Study the annotations to understand what each score reveals:
+
+[source,json]
+----
+{
+  "evaluation_id": "eval-20260305-customer-support",
+  "model": "gpt-4o",
+  "dataset_size": 50,
+  "aggregate_scores": {
+    "groundedness": 3.8,
+    "relevance": 4.2,
+    "coherence": 4.5,
+    "fluency": 4.7
+  },
+  "sample_results": [
+    {
+      "query_id": "q-012",
+      "query": "How do I reset my password?",
+      "groundedness": 5.0,
+      "relevance": 5.0,
+      "coherence": 5.0,
+      "fluency": 5.0,
+      "notes": "Well-covered topic in knowledge base; strong retrieval match"
+    },
+    {
+      "query_id": "q-027",
+      "query": "What is your refund policy for annual plans?",
+      "groundedness": 2.0,
+      "relevance": 3.0,
+      "coherence": 4.0,
+      "fluency": 4.5,
+      "notes": "Knowledge base lacks refund details for annual plans; model fabricated a policy"
+    },
+    {
+      "query_id": "q-041",
+      "query": "Can I transfer my license to another user?",
+      "groundedness": 4.0,
+      "relevance": 2.5,
+      "coherence": 3.5,
+      "fluency": 4.5,
+      "notes": "Retrieved chunks about licensing but not about transfers; response discussed licensing in general"
+    }
+  ]
+}
+----
+
+Notice the patterns in this payload. The aggregate groundedness score of 3.8 is the weakest metric, suggesting a systemic grounding issue. Query q-027 shows the classic knowledge gap pattern: low groundedness because the knowledge base lacks the needed information, leading the model to fabricate. Query q-041 shows a retrieval precision problem: the system retrieved related-but-not-targeted chunks, resulting in low relevance. The high fluency scores across the board confirm that fluency is rarely the bottleneck for modern LLMs -- the problems lie elsewhere in the pipeline.
+
+== 3.4 From Text Generation to Action: Introduction to AI Agents
+
+So far in this course, you have worked with language models in a single mode: you send a prompt, and the model returns text. Whether you are crafting system messages, configuring RAG pipelines, or evaluating response quality, the fundamental interaction is the same -- text in, text out. This section introduces a fundamentally different paradigm: AI systems that do not just generate text but take actions.
+
+=== 3.4.1 The Limitation of Standard Chat Completion: Text In, Text Out
+
+Standard **chat completion** is the interaction pattern you have been using since xref:ch01-generative-ai-foundations.adoc[Chapter 1]. You send a sequence of messages (system message, user message, optionally assistant messages for conversation history), and the model returns a text response. The model's entire capability is constrained to generating the next sequence of tokens based on its input.
+
+This pattern is powerful for many tasks: answering questions, summarizing documents, translating text, writing content, and explaining concepts. But it has a fundamental limitation: the model cannot interact with the outside world. It cannot look up current information, query a database, send an email, create a calendar event, or execute code. It can only generate text that _describes_ these actions.
+
+Consider a user who asks a customer support bot, "Cancel my subscription and send me a confirmation email." A standard chat completion model can generate a response like, "I'd be happy to help you cancel your subscription. Here's what you need to do..." -- but it cannot actually cancel the subscription or send the email. It can describe the action but cannot perform it.
+
+=== 3.4.2 What Makes an Agent Different: The Ability to Take Actions Through Tool Calling
+
+An **AI agent** is a system built on top of a language model that can take actions in the world through **tool calling** (also called function calling). Instead of only generating text, the model can decide that a situation requires an action -- looking up data in a database, calling an API, running a calculation -- and invoke a predefined tool to perform that action. The model then receives the result of the tool call and incorporates it into its reasoning before generating the next response.
+
+The key distinction is that an agent does not just describe what should happen -- it makes it happen. When the user says "Cancel my subscription," an agent can call a `cancel_subscription` tool that actually interacts with the billing system, then call a `send_email` tool to send the confirmation, and finally generate a text response confirming what was done.
+
+// Graphic G3.3: Agent execution loop showing the cycle of receive task, reason, select tool, execute, observe, repeat
+image::ch03/g3-3-agent-execution-loop.png[Agent Execution Loop]
+
+=== 3.4.3 The Agent Execution Loop: Receive Task, Reason, Select Tool, Execute, Observe, Repeat
+
+Agents operate through an iterative **execution loop** that distinguishes them from one-shot text generation:
+
+. **Receive task.** The agent receives a user request or an assigned task.
+. **Reason.** The language model analyzes the task, considers the available tools, and determines what action to take next. This reasoning step is where the model's intelligence is applied -- it must understand the task, break it into steps if necessary, and decide which tool (if any) is appropriate.
+. **Select tool.** The model chooses a specific tool from its available set and formulates the parameters for that tool call. For example, it might select the `search_database` tool with the parameter `{"query": "customer subscription status", "customer_id": "12345"}`.
+. **Execute.** The system executes the tool call and captures the result. This step happens outside the model -- the tool interacts with a real system (a database, an API, a file system) and returns data.
+. **Observe.** The model receives the tool's output and incorporates it into its context. It now has new information that was not available when it started reasoning.
+. **Repeat.** The model determines whether the task is complete. If not, it returns to the reasoning step with the new information and may select another tool. This loop continues until the model determines that the task is fully addressed and generates a final text response.
+
+This loop can execute multiple iterations for a single user request. A complex task like "Find the three most recent orders for customer 12345, check whether any are eligible for a refund, and process the refund for any eligible orders" might require the agent to call a `get_orders` tool, then a `check_refund_eligibility` tool for each order, then a `process_refund` tool for eligible orders -- each iteration building on the results of the previous one.
+
+=== 3.4.4 Components of an Agent: System Prompt, Tool Definitions, Execution Loop, Memory
+
+An AI agent is composed of four key components:
+
+**System prompt.** The system prompt defines the agent's role, capabilities, constraints, and behavioral guidelines. For an agent, the system prompt is typically more detailed than for a standard chat completion because it must describe not just how to communicate but when and how to use tools. It might include instructions like "When a user asks to cancel a subscription, use the cancel_subscription tool rather than describing the cancellation process."
+
+**Tool definitions.** Each tool available to the agent is described in a structured format that includes the tool's name, a description of what it does, and the parameters it accepts (with types and descriptions). The model uses these definitions to understand what each tool can do and how to call it correctly. In Azure OpenAI, tool definitions are passed as part of the API request in a standardized JSON schema format.
+
+**Execution loop.** The loop described in Section 3.4.3 is the runtime engine that orchestrates the interaction between the model's reasoning and the tool executions. The execution loop manages the cycle of model inference, tool dispatch, result capture, and context update.
+
+**Memory.** Agents need to maintain context across multiple steps within a single task (short-term memory) and potentially across multiple interactions (long-term memory). Short-term memory is typically implemented through the conversation history -- each tool call and its result are added to the message sequence so the model can reference previous steps. Long-term memory might involve storing conversation summaries or user preferences in an external store.
+
+// Graphic G3.4: Agent vs. chat completion comparison showing the components and capabilities of each
+image::ch03/g3-4-agent-vs-chat-comparison.png[Agent vs. Chat Completion Comparison]
+
+[NOTE]
+====
+Agents are not a separate product -- they are a pattern built on top of chat completion with tool calling enabled. Azure OpenAI's chat completion API supports tool calling natively. When you define tools in your API request, the model can choose to respond with a tool call instead of (or in addition to) a text message. The "agent" is the application code you write around this capability: the execution loop, the tool implementations, and the memory management. There is no separate "agent API" -- agents are an architectural pattern that uses the same models and APIs you have already been working with.
+====
+
+== 3.5 When to Use Agents vs. Standard Chat Completion
+
+Understanding the agent pattern is one thing; knowing when to apply it is another. Not every AI application needs an agent, and using an agent when standard chat completion would suffice adds unnecessary complexity.
+
+=== 3.5.1 Tasks Suited to Standard Chat Completion
+
+Standard chat completion is the right choice when the task can be fully accomplished through text generation alone. These tasks share a common characteristic: the model has everything it needs in the prompt (or in its training data) and does not need to interact with external systems.
+
+Examples include:
+
+* **Content generation.** Writing marketing copy, drafting emails, generating summaries of provided text. The model transforms input text into output text without needing external data.
+* **Question answering with provided context.** RAG-based question answering, where the relevant documents are already retrieved and included in the prompt. The model synthesizes an answer from the provided context.
+* **Text transformation.** Translation, reformatting, style adjustment, tone changes. The input contains everything the model needs.
+* **Analysis and explanation.** Explaining a concept, analyzing a piece of code, interpreting a data pattern described in the prompt. These are reasoning tasks that produce text output.
+
+=== 3.5.2 Tasks Suited to Agent Architectures
+
+Agent architectures are warranted when the task requires the model to interact with external systems, access real-time data, or perform actions that go beyond text generation.
+
+Examples include:
+
+* **Multi-step workflows.** "Check my order status, and if it's been more than 7 days, file a support ticket." This requires querying an order database, evaluating the result, and conditionally calling a ticketing API.
+* **Real-time data retrieval.** "What's the current price of this product?" requires calling an inventory or pricing API that returns live data the model was not trained on.
+* **System actions.** "Schedule a meeting with my team for next Tuesday at 2 PM" requires interacting with a calendar API to create an actual event.
+* **Dynamic research.** "Find all open issues assigned to me, summarize them, and draft a status update email" requires querying an issue tracker, synthesizing the results, and potentially drafting content based on live data.
+
+=== 3.5.3 The Decision Framework: Does the Task Require External Data or Actions Beyond Text Generation?
+
+The fundamental question for deciding between standard chat completion and an agent architecture is: **Does the task require the model to access external systems or take actions beyond generating text?**
+
+// Graphic G3.5: Agent vs. chat decision flowchart showing the decision process for choosing between architectures
+image::ch03/g3-5-agent-vs-chat-decision.png[Agent vs. Chat Completion Decision Flowchart]
+
+If the answer is no -- if everything the model needs is already in the prompt or its training data, and the desired output is text -- then standard chat completion is sufficient. Adding an agent layer would introduce complexity without benefit.
+
+If the answer is yes -- if the model needs to look up data, call APIs, execute code, or perform actions -- then an agent architecture is appropriate. The question then becomes which tools to provide and how to structure the execution loop.
+
+There is a middle ground worth noting. Some tasks involve light external data access that can be handled by your application code rather than by the model itself. For example, if every user query requires a database lookup, you might perform that lookup in your application code and include the results in the prompt, effectively implementing a RAG pattern rather than an agent pattern. The agent pattern is most valuable when the model needs to _decide_ which external actions to take based on the user's request, rather than following a fixed data retrieval pattern.
+
+=== 3.5.4 Cost and Complexity Considerations
+
+Agent architectures come with real costs that must be weighed against their benefits:
+
+**Token costs.** Each iteration of the agent loop requires a model inference call. A task that requires three tool calls means at least four inference calls (initial reasoning plus one after each tool result). Each call consumes tokens and incurs API charges. For high-volume applications, these costs add up quickly.
+
+**Latency.** Each loop iteration adds latency. The user must wait for the model to reason, for the tool to execute, and for the model to process the result -- potentially multiple times. An agent response that requires three tool calls will take significantly longer than a single chat completion response.
+
+**Error handling complexity.** Tools can fail. APIs return errors, databases time out, and external services go down. Your agent must handle these failures gracefully -- retrying, falling back, or informing the user -- which adds significant engineering complexity.
+
+**Safety and control.** An agent that can take actions in external systems introduces risk. A bug in tool calling logic could lead to unintended actions -- canceling the wrong subscription, sending emails to the wrong person, or modifying data incorrectly. You need guardrails, confirmation steps, and audit logging that are not necessary for text-only applications.
+
+[IMPORTANT]
+====
+Do not use an agent when chat completion suffices -- agents add complexity that must be justified. Every tool call is an additional point of failure, an additional cost, and an additional latency hit. Before building an agent, ask: "Can I solve this with a well-crafted prompt and a RAG pipeline?" If the answer is yes, the simpler architecture is almost always the better choice.
+====
+
+== 3.6 Connecting Evaluation to Agents
+
+=== 3.6.1 How the Four Metrics Apply to Agent Outputs
+
+The four evaluation metrics you learned in Section 3.2 -- groundedness, relevance, coherence, and fluency -- apply to agent outputs just as they do to standard chat completion outputs. When an agent generates a final text response to the user, that response can and should be evaluated for groundedness (is the response supported by the data the agent retrieved through its tool calls?), relevance (does the response address the user's original request?), coherence (is the response logically organized?), and fluency (is the response well-written?).
+
+However, agents introduce a complication: the "source material" for groundedness evaluation is not a fixed set of retrieved chunks from a search index. Instead, it is the dynamic set of tool call results that the agent collected during its execution loop. Evaluating groundedness for an agent means verifying that the agent's final response is faithful to the data returned by its tools, not that it is faithful to a static document store.
+
+=== 3.6.2 Additional Evaluation Dimensions for Agents
+
+Beyond the four standard text quality metrics, agents require additional evaluation dimensions that standard chat completion does not:
+
+**Tool selection accuracy** measures whether the agent chose the correct tools for the task. Did it call the right API? Did it pass the correct parameters? An agent might generate a fluent, coherent response that is completely wrong because it called the wrong tool or passed an incorrect customer ID.
+
+**Task completion rate** measures whether the agent actually accomplished the user's goal. A user who asks "Cancel my subscription" expects the subscription to actually be canceled, not just described as canceled. Task completion evaluation requires checking the state of external systems after the agent completes its work -- was the subscription actually canceled? Was the email actually sent? Was the meeting actually created?
+
+These additional dimensions make agent evaluation more complex and more important than standard chat completion evaluation. In xref:ch04-agent-development.adoc[Chapter 4], you will build agents and encounter these evaluation challenges firsthand.
+
+== 3.7 Hands-On Connections
+
+The concepts in this chapter come to life in two lab activities. Here is what to focus on in each.
+
+=== Lab 05: Evaluating Model Performance with Standard Metrics
+
+In Lab 05, you will run evaluations against a set of test queries and examine the resulting metric scores. As you work through the lab, pay attention to the following:
+
+* **Score distribution.** Do not just look at average scores -- examine the distribution. A few very low scores can drag down the average, and those outliers are often the most instructive cases. What do the low-scoring queries have in common?
+* **Metric correlation.** Notice whether low scores tend to cluster together. If a query has low groundedness, does it also tend to have low relevance? These correlations help you identify root causes.
+* **Before and after.** If the lab includes a prompt or parameter adjustment, compare the scores before and after. Which metrics improved? Did any get worse? This teaches you that improvements are often tradeoffs.
+
+=== Lab 06: Exploring AI Agents and Tool Calling
+
+In Lab 06, you will work with a simple agent that uses tool calling to complete tasks. Focus on:
+
+* **The execution loop in action.** Watch how the agent reasons about which tool to call, examines the result, and decides what to do next. This iterative pattern is the core of agent behavior.
+* **Tool selection decisions.** Notice when the agent chooses to call a tool versus when it generates a text response directly. What triggers the decision to use a tool?
+* **Failure handling.** If a tool call fails or returns unexpected data, observe how the agent responds. Does it retry? Does it fall back to a text response? Does it inform the user?
+
+== 3.8 Assessment Preparation
+
+This week includes two assessments that test your ability to apply the concepts from this chapter. Here is guidance for approaching each one effectively.
+
+=== Evaluation Report (600-900 words)
+
+The Evaluation Report asks you to present metric scores from Lab 05, interpret what they reveal, recommend improvements, and identify limitations. To prepare:
+
+* **Present the data clearly.** Include the actual metric scores from your lab work. Organize them so the reader can quickly see patterns -- which metrics are strong, which are weak, and which queries are problematic. Consider using a table or structured format.
+* **Interpret, do not just describe.** Saying "groundedness scored 3.2" is description. Saying "the groundedness score of 3.2 suggests the model is partially fabricating information, likely because the knowledge base does not cover all query topics" is interpretation. Connect each score to a specific diagnosis of what is happening in the pipeline.
+* **Recommend at least two specific adjustments.** Do not offer vague suggestions like "improve the prompts." Instead, provide concrete, actionable recommendations tied to your diagnosis. If relevance is low, specify what you would change about the retrieval configuration. If groundedness is low, describe the specific prompt modification you would make.
+* **Identify one limitation.** Acknowledge something that the metrics do not capture or a situation where the evaluation approach falls short. This demonstrates critical thinking about the evaluation framework itself, not just the results.
+
+=== Discussion: Agent vs. Chat Completion (250-400 words initial post)
+
+The discussion asks you to describe one task suited to an agent architecture and one suited to standard chat completion, and to identify the key differentiator between them. To prepare:
+
+* **Choose real, concrete tasks.** Do not describe abstract categories of tasks -- describe specific, named tasks with enough detail that a reader can evaluate whether your architectural choice is justified. "Processing a customer refund" is more concrete than "tasks that require actions."
+* **Apply the decision framework.** For each task, explain _why_ your chosen architecture is appropriate using the criteria from Section 3.5.3. Does the task require external data access or actions? Can it be accomplished with text generation alone?
+* **Identify the key differentiator.** What is the single most important factor that makes you choose one architecture over the other? This should be a clear, defensible principle, not a list of minor differences.
+
+Do not try to find the "right" tasks for this discussion. There are many valid examples for each architecture. The assessment evaluates the quality of your reasoning and the clarity of your justification, not the specific tasks you choose.
+
+== 3.9 Key Terms
+
+groundedness:: A metric measuring how well a model's generated response is supported by the source documents or context provided to it. A highly grounded response contains only claims traceable to the source material.
+
+relevance:: A metric measuring how well a model's response addresses the specific question or task the user presented. A highly relevant response directly and completely engages with the user's intent.
+
+coherence:: A metric measuring the logical flow, organizational quality, and internal consistency of a model's response. A highly coherent response presents ideas in a logical sequence with smooth transitions.
+
+fluency:: A metric measuring the linguistic quality of a model's response, including grammar, word choice, sentence structure, and naturalness. A highly fluent response reads as if written by a competent human.
+
+evaluation scorecard:: A collection of metric scores across a set of test queries used to assess model performance systematically rather than through subjective judgment.
+
+AI agent:: A system built on top of a language model that can take actions in the world through tool calling, going beyond text generation to interact with external systems and data sources.
+
+tool calling:: The capability of a language model to invoke predefined functions or APIs during the generation process, enabling the model to access external data, perform calculations, or trigger actions. Also called function calling.
+
+execution loop:: The iterative cycle an agent follows: receive a task, reason about it, select and execute a tool, observe the result, and repeat until the task is complete.
+
+system prompt:: The initial instruction message that defines a model's or agent's role, capabilities, constraints, and behavioral guidelines. For agents, the system prompt also governs tool usage decisions.
+
+tool definition:: A structured description of a tool available to an agent, including its name, purpose, and the parameters it accepts, provided in a format the model can interpret.
+
+short-term memory:: An agent's ability to maintain context across multiple steps within a single task execution, typically implemented through conversation history that includes tool calls and results.
+
+long-term memory:: An agent's ability to retain information across multiple separate interactions, typically implemented through external storage of conversation summaries, user preferences, or learned facts.
+
+chat completion:: The standard interaction pattern where a user sends messages to a language model and receives a text response, without the model taking external actions or calling tools.
+
+task completion rate:: An evaluation metric for agents measuring whether the agent actually accomplished the user's stated goal, verified by checking the state of external systems.
+
+tool selection accuracy:: An evaluation metric for agents measuring whether the agent chose the correct tools and parameters for the task it was asked to perform.
+
+temperature:: A model parameter controlling the randomness of token selection. Lower temperatures produce more deterministic, focused responses; higher temperatures produce more varied, creative responses.
+
+top-k parameter:: In retrieval systems, the setting that determines how many of the most-similar document chunks are returned for a given query.
+
+false positive / false negative:: In evaluation contexts, a false positive is a response flagged as problematic when it is actually acceptable; a false negative is a problematic response that the evaluation fails to catch.
+
+== 3.10 Chapter Summary
+
+This chapter equipped you with two foundational capabilities for building production-quality AI systems. First, you learned how to evaluate generative AI outputs using four standard metrics: groundedness, relevance, coherence, and fluency. These metrics transform subjective impressions of response quality into measurable, diagnosable, and actionable scores. You learned that groundedness is the safety-critical metric -- a response that sounds good but fabricates information is more dangerous than one that sounds rough but stays faithful to its sources. You practiced reading evaluation scorecards, diagnosing the root causes of weak scores, and recommending specific adjustments to prompts, parameters, and pipeline configurations.
+
+Second, you were introduced to AI agents -- systems that extend language models beyond text generation into the realm of action. You learned that agents are not a separate product but an architectural pattern built on top of chat completion with tool calling. The agent execution loop -- reason, select tool, execute, observe, repeat -- enables models to accomplish tasks that require interacting with external systems, accessing real-time data, and performing multi-step workflows. You also learned the critical decision framework for choosing between agent and chat completion architectures: if the task requires external data or actions beyond text generation, consider an agent; if it can be accomplished with text alone, standard chat completion is simpler and more appropriate.
+
+These two threads -- evaluation and agents -- converge in an important way. As you build more capable AI systems that take actions in the world, the stakes of evaluation increase. An agent that fabricates data or selects the wrong tool can cause real harm in external systems. The evaluation discipline you learned in this chapter becomes even more essential as you move into xref:ch04-agent-development.adoc[Chapter 4], where you will build agents with tool calling and confront the engineering challenges of making them reliable, safe, and effective.

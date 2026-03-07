@@ -1,0 +1,646 @@
+= Chapter 4: AI Agent Development
+
+== Learning Objectives
+
+By the end of this chapter, you will be able to:
+
+. Implement an AI agent that uses tool calling to perform actions beyond text generation.
+. Design a multi-agent workflow that distributes subtasks across specialized agents.
+. Evaluate coordination patterns for multi-agent systems in a given business scenario.
+
+== 4.1 Introduction: From Concept to Implementation
+
+In xref:ch03-evaluation-and-agents-intro.adoc[Chapter 3], you learned what AI agents are and when to use them. You explored the execution loop, the concept of tool calling, and the decision framework for choosing between agent and chat completion architectures. Now it is time to build one.
+
+Consider the following scenario. A mid-sized financial services firm employs fifty research analysts who spend their days pulling market data from Bloomberg terminals, retrieving regulatory filings from the SEC's EDGAR database, comparing fund performance across multiple benchmarks, and assembling these findings into standardized research reports. Each analyst performs these steps dozens of times per week, and the process is remarkably consistent: gather data, retrieve documents, run comparisons, generate a report. The firm's CTO wants to build an AI-powered research assistant that can automate the repetitive parts of this workflow while keeping analysts in the loop for judgment calls.
+
+At first glance, this looks like a straightforward chat completion problem. The analysts could type questions and get text responses. But consider what the system actually needs to do. It needs to call a market data API to pull real-time stock prices and historical performance. It needs to search a document index to retrieve relevant regulatory filings. It needs to perform calculations -- comparing returns across benchmarks, computing risk-adjusted metrics. And it needs to format its findings into structured reports that follow the firm's template. None of these tasks can be accomplished by generating text alone. Each one requires the system to take an action: calling an API, querying a database, executing a computation, formatting output.
+
+This is an agent problem. And not just any agent problem -- it is a problem that may require multiple agents, each specialized for a different part of the workflow. One agent might handle market data retrieval. Another might specialize in document search and summarization. A third might perform quantitative comparisons. And an orchestrating agent might coordinate the others, deciding which specialist to invoke based on the analyst's request.
+
+Over the course of this chapter, you will learn how to build systems like this. You will start with the mechanics of tool calling -- how tools are defined, how the model selects them, and how your application executes them. Then you will build a single agent with a reasoning-action loop. From there, you will scale up to multi-agent architectures, learning the patterns that govern how agents coordinate. You will confront the error handling challenges unique to agent systems, and you will extend the evaluation framework from xref:ch03-evaluation-and-agents-intro.adoc[Chapter 3] to measure agent-specific performance. By the end, you will be ready to design and defend an agent architecture for the financial research assistant scenario.
+
+== 4.2 Tool Calling Mechanics
+
+In xref:ch03-evaluation-and-agents-intro.adoc[Chapter 3], you learned that tool calling is what separates agents from standard chat completions. A chat completion generates text. An agent generates text _and_ decides when to invoke external functions that interact with the world. This section examines the mechanics of tool calling in detail: how you define tools, how the model selects them, how the execution lifecycle works, and how to handle errors.
+
+=== 4.2.1 Defining Tools: Function Name, Description, and Parameter Schema
+
+A **tool definition** is a structured description you provide to the model so it knows what tools are available and how to call them. Every tool definition has three essential components: a function name, a description, and a parameter schema.
+
+The function name is a short, programmatic identifier like `get_stock_price` or `search_filings`. The description is a natural language explanation of what the tool does. The parameter schema specifies what inputs the tool accepts, their types, and which are required.
+
+Here is a tool definition for the financial research assistant's market data tool:
+
+[source,json]
+----
+{
+  "type": "function",
+  "function": {
+    "name": "get_stock_price",
+    "description": "Retrieves the current stock price and daily trading summary for a given ticker symbol. Returns the current price, daily high, daily low, opening price, and trading volume. Use this tool when the user asks about a stock's current price or today's trading activity.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "ticker": {
+          "type": "string",
+          "description": "The stock ticker symbol, e.g., 'AAPL' for Apple Inc."
+        },
+        "include_history": {
+          "type": "boolean",
+          "description": "If true, includes the last 30 days of closing prices in addition to the current price. Defaults to false."
+        }
+      },
+      "required": ["ticker"]
+    }
+  }
+}
+----
+
+// Graphic G4.2: Tool definition anatomy showing each component of a tool definition
+image::ch04/g4-2-tool-definition-anatomy.png[Anatomy of a Tool Definition]
+
+Notice that this definition uses JSON Schema to describe the parameters. The `ticker` parameter is required, while `include_history` is optional with a described default. The model reads this schema to understand what arguments it needs to provide when calling the tool.
+
+Here is a second tool definition for the document search function:
+
+[source,json]
+----
+{
+  "type": "function",
+  "function": {
+    "name": "search_regulatory_filings",
+    "description": "Searches the SEC EDGAR database for regulatory filings matching a query. Returns a list of matching filings with titles, dates, filing types (10-K, 10-Q, 8-K, etc.), and brief summaries. Use this tool when the user asks about a company's regulatory filings, annual reports, or SEC submissions.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "company_name": {
+          "type": "string",
+          "description": "The company name or CIK number to search for."
+        },
+        "filing_type": {
+          "type": "string",
+          "enum": ["10-K", "10-Q", "8-K", "DEF 14A", "S-1"],
+          "description": "The type of SEC filing to filter by. If omitted, returns all filing types."
+        },
+        "date_range_start": {
+          "type": "string",
+          "description": "Start date for the search range in YYYY-MM-DD format."
+        },
+        "date_range_end": {
+          "type": "string",
+          "description": "End date for the search range in YYYY-MM-DD format."
+        }
+      },
+      "required": ["company_name"]
+    }
+  }
+}
+----
+
+Together, these two definitions give the model a toolkit: it can pull market data and search regulatory filings. When the user asks a question, the model decides which tool (if any) to invoke based on the descriptions and schemas you have provided.
+
+=== 4.2.2 Why Tool Descriptions Matter
+
+Here is a critical insight that many developers miss: the model selects tools based on their descriptions, not their code. The model never sees the Python function that implements `get_stock_price`. It only sees the name, description, and parameter schema you provide in the tool definition. If your description is vague or misleading, the model will make poor tool selection decisions regardless of how well the underlying function works.
+
+Consider two descriptions for the same tool:
+
+* **Weak:** "Gets stock data."
+* **Strong:** "Retrieves the current stock price and daily trading summary for a given ticker symbol. Returns the current price, daily high, daily low, opening price, and trading volume. Use this tool when the user asks about a stock's current price or today's trading activity."
+
+The weak description gives the model almost nothing to work with. "Stock data" could mean historical prices, financial statements, earnings reports, or analyst ratings. The model has to guess what this tool actually does. The strong description specifies exactly what data the tool returns and exactly when to use it. The model can make an informed decision.
+
+[TIP]
+====
+Write tool descriptions as if explaining the function to a colleague who has never seen the code. Include what the tool does, what it returns, and when to use it. The more precise your description, the more accurate the model's tool selection will be.
+====
+
+=== 4.2.3 The Tool Execution Lifecycle
+
+The tool calling process follows a three-phase lifecycle that is essential to understand: the model proposes a call, your application executes it, and the result is returned to the model.
+
+// Graphic G4.1: Tool execution lifecycle showing the three phases
+image::ch04/g4-1-tool-execution-lifecycle.png[Tool Execution Lifecycle]
+
+**Phase 1: The model proposes a tool call.** When the model determines that it needs to use a tool, it does not execute anything. Instead, it returns a structured response indicating which tool it wants to call and what arguments to pass. This response includes the tool name, the arguments as a JSON object, and a unique tool call ID.
+
+**Phase 2: Your application executes the tool.** Your application code receives the model's proposal, validates it, and executes the actual function. This is where real work happens -- the API call is made, the database is queried, the calculation is performed. Your code is fully in control of this step. You can add logging, validation, rate limiting, error handling, or any other logic before, during, and after execution.
+
+**Phase 3: The result is returned to the model.** Your application sends the tool's output back to the model as a new message in the conversation. The model reads this result and decides what to do next -- it might generate a final text response, or it might propose another tool call to gather additional information.
+
+Here is what this looks like in Python code using the Azure OpenAI SDK:
+
+[source,python]
+----
+from openai import AzureOpenAI
+import json
+
+client = AzureOpenAI(
+    azure_endpoint="https://your-resource.openai.azure.com/",
+    api_version="2025-01-01-preview",
+    api_key="your-api-key"
+)
+
+# Define the tools
+tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_stock_price",
+            "description": "Retrieves the current stock price and daily trading "
+                           "summary for a given ticker symbol.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "ticker": {
+                        "type": "string",
+                        "description": "The stock ticker symbol, e.g., 'AAPL'."
+                    }
+                },
+                "required": ["ticker"]
+            }
+        }
+    }
+]
+
+# Send a message with tools available
+messages = [
+    {"role": "system", "content": "You are a financial research assistant."},
+    {"role": "user", "content": "What is Apple's current stock price?"}
+]
+
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=messages,
+    tools=tools
+)
+
+# Phase 1: The model proposes a tool call
+choice = response.choices[0]
+if choice.finish_reason == "tool_calls":
+    tool_call = choice.message.tool_calls[0]
+    function_name = tool_call.function.name    # "get_stock_price"
+    arguments = json.loads(tool_call.function.arguments)  # {"ticker": "AAPL"}
+
+    # Phase 2: Your application executes the tool
+    if function_name == "get_stock_price":
+        result = get_stock_price(arguments["ticker"])  # Your real function
+
+    # Phase 3: Return the result to the model
+    messages.append(choice.message)  # Add the assistant's tool call message
+    messages.append({
+        "role": "tool",
+        "tool_call_id": tool_call.id,
+        "content": json.dumps(result)
+    })
+
+    # The model reads the result and generates a final response
+    final_response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=messages,
+        tools=tools
+    )
+    print(final_response.choices[0].message.content)
+----
+
+[IMPORTANT]
+====
+The model never executes tools directly -- your application code is the execution layer. The model only proposes tool calls by returning structured JSON. Your code decides whether to honor those proposals, how to execute them, and what results to return. This separation is a fundamental safety boundary: you control what actions the system actually takes.
+====
+
+=== 4.2.4 Parameter Validation and Error Handling in Tool Calls
+
+Because the model generates tool call arguments as free-form JSON, you cannot blindly trust the arguments it provides. The model might produce invalid JSON, omit required parameters, provide values of the wrong type, or hallucinate parameter names that do not exist in your schema.
+
+Robust tool execution requires validation at every step:
+
+[source,python]
+----
+def execute_tool_call(tool_call, available_tools):
+    """Safely execute a tool call with validation and error handling."""
+    function_name = tool_call.function.name
+
+    # Validate: Is this a tool we actually offer?
+    if function_name not in available_tools:
+        return {"error": f"Unknown tool: {function_name}"}
+
+    # Validate: Can we parse the arguments?
+    try:
+        arguments = json.loads(tool_call.function.arguments)
+    except json.JSONDecodeError:
+        return {"error": "Invalid JSON in tool arguments"}
+
+    # Validate: Are required parameters present?
+    tool_func = available_tools[function_name]
+    required_params = tool_func.get("required_params", [])
+    for param in required_params:
+        if param not in arguments:
+            return {"error": f"Missing required parameter: {param}"}
+
+    # Execute with error handling
+    try:
+        result = tool_func["handler"](**arguments)
+        return {"success": True, "data": result}
+    except TimeoutError:
+        return {"error": "Tool execution timed out"}
+    except Exception as e:
+        return {"error": f"Tool execution failed: {str(e)}"}
+----
+
+This validation layer protects your system from two categories of problems: model errors (the model generates a bad tool call) and execution errors (the tool itself fails). Both categories need to be handled gracefully, as you will see in Section 4.5.
+
+== 4.3 Building a Single Agent
+
+With tool calling mechanics understood, you can now assemble these components into an agent -- a system that repeatedly reasons about a task, selects and executes tools, observes the results, and continues until the task is complete. This section walks through building a minimal but functional agent.
+
+=== 4.3.1 System Prompt Design for Agent Behavior
+
+The **system prompt** is where you define your agent's identity, capabilities, and constraints. For an agent, the system prompt does more than set a tone -- it governs how the agent reasons about tool usage, what it does when tools fail, and when it should stop and respond to the user.
+
+Here is a system prompt for the financial research assistant:
+
+[source,python]
+----
+system_prompt = """You are a financial research assistant for Meridian Capital
+Advisors. Your role is to help analysts gather market data, retrieve regulatory
+filings, and compile research summaries.
+
+CAPABILITIES:
+- You can look up current stock prices and trading data using the
+  get_stock_price tool.
+- You can search SEC regulatory filings using the search_regulatory_filings
+  tool.
+
+BEHAVIORAL GUIDELINES:
+- Always use tools to retrieve factual data. Do not fabricate stock prices,
+  filing dates, or financial figures.
+- If a tool call fails, inform the user what went wrong and suggest an
+  alternative approach.
+- If the user's request is outside your capabilities, say so clearly rather
+  than attempting to answer from general knowledge.
+- When presenting data from tools, cite the source (e.g., "According to the
+  market data retrieved...").
+- Limit your responses to the data returned by your tools and your ability
+  to synthesize that data. Do not speculate beyond the available information.
+"""
+----
+
+Notice how this prompt explicitly addresses tool usage behavior. It tells the agent _when_ to use tools ("always use tools to retrieve factual data"), _what to do when tools fail_ ("inform the user"), and _what not to do_ ("do not fabricate," "do not speculate"). These instructions are critical because without them, the agent may fall back to generating plausible-sounding but fabricated data instead of calling tools.
+
+=== 4.3.2 Registering Tools with the Agent
+
+Registering tools means providing the model with the list of tool definitions alongside each API call. In the Azure OpenAI SDK, you pass the `tools` parameter with your list of tool definitions. The model then knows what tools are available for any given turn of the conversation.
+
+You can also control how aggressively the model uses tools by setting the `tool_choice` parameter. Setting it to `"auto"` (the default) lets the model decide when to use tools. Setting it to `"required"` forces the model to make a tool call on every turn. Setting it to `"none"` disables tool calling entirely. You can even specify a particular tool by name to force the model to call that specific function.
+
+=== 4.3.3 The Reasoning-Action Loop in Practice
+
+The **reasoning-action loop** (sometimes called the ReAct pattern) is the core behavior pattern of an agent. The agent receives a task, reasons about what to do, takes an action (calls a tool), observes the result, and repeats until the task is complete. Here is a minimal implementation:
+
+[source,python]
+----
+def run_agent(user_message, system_prompt, tools, tool_handlers, max_iterations=10):
+    """Run an agent loop until the task is complete or max iterations reached."""
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_message}
+    ]
+
+    for iteration in range(max_iterations):
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=messages,
+            tools=tools
+        )
+
+        choice = response.choices[0]
+
+        # If the model generated a text response, the task is complete
+        if choice.finish_reason == "stop":
+            return choice.message.content
+
+        # If the model proposed tool calls, execute them
+        if choice.finish_reason == "tool_calls":
+            messages.append(choice.message)
+
+            for tool_call in choice.message.tool_calls:
+                result = execute_tool_call(tool_call, tool_handlers)
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": json.dumps(result)
+                })
+
+    return "I was unable to complete the task within the allowed number of steps."
+----
+
+This function captures the essential agent pattern in under thirty lines. The `for` loop is the reasoning-action loop. Each iteration gives the model a chance to either respond with text (task complete) or propose tool calls (more work to do). The `max_iterations` parameter prevents runaway loops.
+
+=== 4.3.4 Controlling Agent Behavior: Max Iterations, Token Budgets, Stop Conditions
+
+An uncontrolled agent is a dangerous agent. Without constraints, an agent can loop indefinitely, consume unlimited tokens, or pursue unproductive lines of reasoning. You need explicit controls:
+
+**Max iterations** caps how many reasoning-action cycles the agent can perform. For most tasks, 5-10 iterations is sufficient. If the agent cannot complete a task in 10 iterations, it is likely stuck in a loop or pursuing a fundamentally wrong approach.
+
+**Token budgets** limit how much context the agent can accumulate. Each tool call result adds to the conversation history, and that history is included in every subsequent API call. An agent that calls many tools can quickly exhaust the model's context window. Track cumulative token usage and stop the agent when it approaches the limit.
+
+**Stop conditions** define explicit signals that the agent should terminate. Beyond "the model generated a text response," you might define conditions such as: a critical tool has failed three times, the user's request has been fully addressed (as determined by a classifier), or a timeout has been reached.
+
+These controls are not optional safeguards -- they are essential components of any production agent. The reasoning-action loop is powerful precisely because it is open-ended, and open-ended systems require explicit boundaries.
+
+== 4.4 Multi-Agent Architecture Design
+
+A single agent with two or three tools can handle focused tasks effectively. But what happens when the scope of work grows? The financial research assistant needs to pull market data, search regulatory filings, run quantitative comparisons, check compliance rules, and generate formatted reports. Loading all of these capabilities into a single agent creates problems: the system prompt becomes unwieldy, tool selection accuracy degrades as the number of tools grows, and the agent's reasoning must cover too many domains. This is where **multi-agent architectures** become valuable.
+
+=== 4.4.1 Why Multi-Agent? When a Single Agent's Scope Becomes Too Broad
+
+The practical trigger for moving to multi-agent is not a fixed number of tools. It is the emergence of distinct domains of expertise that require different system prompts, different tool sets, and different behavioral constraints. When you find yourself writing a system prompt that says "If the user asks about X, do this; if they ask about Y, do that; if they ask about Z, do something else entirely," you are encoding routing logic into prose. A multi-agent architecture makes that routing explicit.
+
+A single agent with fifteen tools faces a combinatorial problem. The model must select the right tool from fifteen options, and it must understand the nuances of when to use each one. Research has shown that tool selection accuracy degrades as the number of available tools increases. Multi-agent systems solve this by giving each agent a small, focused toolkit where selection is straightforward.
+
+=== 4.4.2 Agent Specialization: Decomposing a Complex Task into Focused Roles
+
+**Agent specialization** means breaking a complex workflow into focused roles, each handled by a dedicated agent with its own system prompt and tool set. For the financial research assistant, this might look like:
+
+* **Market Data Agent:** System prompt focused on financial data retrieval. Tools: `get_stock_price`, `get_historical_prices`, `get_market_indices`. Behavioral constraint: only returns numerical data and factual market information, never offers investment advice.
+* **Document Research Agent:** System prompt focused on document search and summarization. Tools: `search_regulatory_filings`, `get_filing_content`, `summarize_document`. Behavioral constraint: always cites the specific filing and section when presenting information.
+* **Quantitative Analysis Agent:** System prompt focused on financial calculations. Tools: `calculate_returns`, `compare_benchmarks`, `compute_risk_metrics`. Behavioral constraint: shows its work by including the formulas and inputs used in every calculation.
+* **Report Generation Agent:** System prompt focused on formatting and compilation. Tools: `format_report`, `insert_chart`, `export_pdf`. Behavioral constraint: follows the firm's report template and style guide.
+
+Each agent is an expert in its domain. Its system prompt is concise and focused. Its tool set is small and relevant. Its behavioral constraints are specific to its role. This specialization leads to better tool selection, more coherent reasoning, and more predictable behavior.
+
+=== 4.4.3 The Orchestrator Pattern
+
+The **orchestrator pattern** is the most common coordination approach for multi-agent systems. A central orchestrator agent receives the user's request, analyzes it, decomposes it into subtasks, routes each subtask to the appropriate specialist agent, collects results, and synthesizes a final response.
+
+// Graphic G4.3: Multi-agent orchestrator pattern showing the orchestrator routing to specialist agents
+image::ch04/g4-3-multi-agent-orchestrator.png[Multi-Agent Orchestrator Pattern]
+
+In the financial research assistant, the orchestrator might work like this:
+
+. The analyst asks: "Compare Apple's stock performance to the S&P 500 over the last quarter, and check if there were any significant 8-K filings during that period."
+. The orchestrator decomposes this into two subtasks: (a) retrieve and compare stock performance data, and (b) search for 8-K filings.
+. The orchestrator routes subtask (a) to the Market Data Agent and the Quantitative Analysis Agent in sequence: first get the data, then run the comparison.
+. The orchestrator routes subtask (b) to the Document Research Agent.
+. The orchestrator collects results from all agents, passes them to the Report Generation Agent, and returns the formatted report to the analyst.
+
+The orchestrator itself is an agent with a special role. Its "tools" are the other agents. Its system prompt instructs it to analyze requests, identify which specialists are needed, determine the order of operations, and handle cases where specialist agents return errors or incomplete results.
+
+=== 4.4.4 Sequential Pipelines
+
+In a **sequential pipeline**, agents execute one after another, with each agent's output becoming the next agent's input. This pattern works well when the task has natural stages that must occur in order.
+
+For example, generating a research report might follow this pipeline:
+
+. **Data Gathering Agent** retrieves raw market data and filings.
+. **Analysis Agent** processes the raw data into insights and comparisons.
+. **Report Agent** formats the insights into a structured document.
+
+Each agent in the pipeline receives the accumulated context from all previous agents. The pipeline is simple to implement and easy to debug because you can inspect the handoff between each stage. However, it is inherently serial -- every stage must complete before the next one begins, which increases end-to-end latency.
+
+=== 4.4.5 Parallel Execution
+
+When subtasks are independent, you can execute multiple agents simultaneously. In the earlier example, retrieving stock performance data and searching for 8-K filings are independent operations. Running them in parallel reduces latency because the total time is the duration of the slowest subtask rather than the sum of all subtasks.
+
+Parallel execution requires that the orchestrator can identify which subtasks are independent and can manage concurrent execution. In Python, this might involve `asyncio` tasks or thread pools. The orchestrator launches multiple agent calls simultaneously and collects results as they complete.
+
+The challenge with parallel execution is result aggregation. When agents finish at different times and produce results in different formats, the orchestrator must reconcile these outputs into a coherent response. If one parallel branch fails while others succeed, the orchestrator must decide whether to return partial results, retry the failed branch, or report the failure.
+
+=== 4.4.6 Hybrid Coordination
+
+Most real-world multi-agent systems use **hybrid coordination** -- a combination of sequential and parallel patterns. The financial research assistant might use this structure:
+
+. **Phase 1 (parallel):** The Market Data Agent and Document Research Agent retrieve data simultaneously.
+. **Phase 2 (sequential):** The Quantitative Analysis Agent receives the market data from Phase 1 and performs comparisons.
+. **Phase 3 (sequential):** The Report Generation Agent receives all results and compiles the final report.
+
+// Graphic G4.4: Coordination patterns comparison showing sequential, parallel, and hybrid
+image::ch04/g4-4-coordination-patterns.png[Coordination Patterns Comparison]
+
+Hybrid coordination optimizes for both latency (by parallelizing independent tasks) and correctness (by sequencing dependent tasks). The orchestrator's job becomes more complex, as it must manage both parallel execution and sequential dependencies, but the result is a system that is both fast and logically sound.
+
+=== 4.4.7 Context Passing Between Agents
+
+A critical design decision in multi-agent systems is how context flows between agents. Each agent operates with its own conversation history, so you must explicitly decide what information to pass from one agent to the next.
+
+**Full context passing** means forwarding the entire conversation history from one agent to the next. This gives each agent maximum information but consumes context window space rapidly and can confuse agents with irrelevant details from other specialists' domains.
+
+**Summary context passing** means having the orchestrator summarize the results from one agent before passing them to the next. This is more token-efficient and keeps each agent focused on relevant information, but the summarization step can lose important details.
+
+**Structured context passing** means defining a fixed data format (such as a JSON object) that agents use to communicate. Each agent reads specific fields from the shared context and writes its results to designated output fields. This approach is the most predictable and easiest to debug, but requires upfront design work to define the shared schema.
+
+For the financial research assistant, structured context passing works well because financial data has natural structure -- ticker symbols, price arrays, filing metadata -- that maps cleanly to JSON fields.
+
+[NOTE]
+====
+More agents does not mean better -- each agent adds latency, token cost, and coordination overhead. Start with the fewest agents that cleanly separate your domains of expertise, and only add agents when you have evidence that a single agent's scope is causing errors or degraded performance.
+====
+
+== 4.5 Error Handling in Agent Systems
+
+Agent systems introduce failure modes that do not exist in standard chat completion. When a model generates text, the worst outcome is a bad response. When an agent takes actions, a failure can cascade through external systems, produce corrupted data, or leave a workflow in an inconsistent state. Robust error handling is not an enhancement -- it is a requirement for any agent that operates in a production environment.
+
+=== 4.5.1 Tool Failure Modes
+
+Tools fail in ways that regular API calls fail, plus a few modes unique to the agent context:
+
+**Timeouts.** An external API does not respond within the allotted time. The market data provider might be experiencing latency, or the SEC EDGAR system might be under heavy load. Your agent needs to handle these without assuming the tool call succeeded.
+
+**Invalid responses.** The tool executes successfully but returns data in an unexpected format. The stock price API might return a string where you expected a number, or the filing search might return an empty result set when you expected matches. The agent must not blindly incorporate malformed data into its reasoning.
+
+**Service unavailability.** The external service is completely down. This is different from a timeout -- the service explicitly rejects the connection. Your error handling must distinguish between "try again later" (transient) and "this service is not available" (persistent).
+
+**Rate limiting.** External APIs impose rate limits. An agent that calls `get_stock_price` fifty times in rapid succession will get throttled. Your tool execution layer must respect rate limits and queue or delay calls when necessary.
+
+=== 4.5.2 Agent-Level Failures
+
+Beyond tool failures, agents can fail at the reasoning level:
+
+**Infinite loops.** The agent calls the same tool repeatedly with the same arguments, expecting different results. This happens when the agent does not interpret tool results correctly or when its reasoning gets stuck in a pattern. The `max_iterations` guard from Section 4.3.4 catches this, but you should also detect the specific pattern of repeated identical calls.
+
+**Context window exhaustion.** Each tool call adds to the conversation history. An agent handling a complex task with many tool calls can fill up the model's context window, causing the API call to fail or the model to lose track of earlier information. Monitor cumulative token usage and implement strategies such as summarizing earlier conversation history to free up context space.
+
+**Hallucinated tool names.** The model proposes a call to a tool that does not exist. This can happen when the model infers that a tool should exist based on the pattern of available tools. If you have `get_stock_price`, the model might hallucinate `get_bond_price` even though no such tool is defined. The validation layer from Section 4.2.4 catches this, but you should log these occurrences because they signal that the model is attempting actions beyond its defined capabilities.
+
+**Argument fabrication.** The model calls a real tool but fabricates argument values. For example, it might call `get_stock_price` with a ticker symbol that does not exist, or provide a date in the wrong format. Parameter validation is your defense here.
+
+=== 4.5.3 Coordination Failures in Multi-Agent Systems
+
+Multi-agent systems add a layer of failure modes related to coordination:
+
+**Routing errors.** The orchestrator sends a subtask to the wrong specialist agent. A question about regulatory filings goes to the Market Data Agent instead of the Document Research Agent. The specialist either fails to handle it or produces a poor result.
+
+**Lost context.** Information from one agent does not reach another agent that needs it. The Market Data Agent retrieves stock prices, but due to a context passing bug, the Quantitative Analysis Agent does not receive the data and either hallucinates values or reports an error.
+
+**Partial failures.** In parallel execution, some branches succeed and others fail. The orchestrator must decide how to handle mixed results. Does it return what it has, retry the failed branches, or report the entire request as failed?
+
+**Inconsistent results.** Two agents produce contradictory information. The Market Data Agent reports a stock price of $150, but the Document Research Agent finds a recent filing that states the company's stock split, meaning the price should be adjusted. Without a reconciliation mechanism, the orchestrator may pass contradictory data to the user.
+
+=== 4.5.4 Mitigation Strategies
+
+Effective agent error handling employs multiple strategies:
+
+**Retries with backoff.** For transient failures (timeouts, rate limits), retry the tool call after a delay. Use exponential backoff to avoid overwhelming the service. Limit the number of retries to prevent infinite retry loops.
+
+**Fallback tools.** When a primary tool fails, switch to an alternative. If the real-time market data API is down, fall back to a cached data source that may be slightly stale but still useful. The agent should inform the user when it uses fallback data.
+
+**Validation checks.** Validate tool results before incorporating them into the agent's reasoning. Check that stock prices are positive numbers, that dates are in valid ranges, and that filing search results contain expected fields. Return validation errors to the model so it can adjust its approach.
+
+**Human escalation.** Define conditions under which the agent should stop attempting to resolve a problem and escalate to a human. If three different approaches to answering a question have all failed, it is better to tell the analyst "I was unable to retrieve this data -- please try accessing it directly" than to return a fabricated answer.
+
+// Graphic G4.5: Error handling decision tree showing how to handle different failure types
+image::ch04/g4-5-error-handling-decision-tree.png[Error Handling Decision Tree]
+
+=== 4.5.5 Designing for Graceful Degradation
+
+**Graceful degradation** means that when parts of the system fail, the system still provides value rather than failing completely. For the financial research assistant, this might mean:
+
+* If market data is unavailable, the agent still searches and summarizes regulatory filings.
+* If the report formatting tool fails, the agent returns unformatted but accurate data.
+* If one specialist agent in a multi-agent system is down, the orchestrator completes the request with the remaining agents and notes what is missing.
+
+Designing for graceful degradation requires thinking about each tool and each agent as independently removable. If you remove any single component, can the system still provide partial value? If removing one component causes a total system failure, you have a fragile dependency that needs a fallback path.
+
+[WARNING]
+====
+An agent that silently fails and returns a plausible-sounding but incorrect answer is more dangerous than one that explicitly reports an error. Always prefer explicit failure over silent fabrication. When a tool call fails, the agent should tell the user what failed and what information is missing, rather than filling in the gap with generated text that looks like real data.
+====
+
+== 4.6 Evaluating Agent and Multi-Agent Systems
+
+In xref:ch03-evaluation-and-agents-intro.adoc[Chapter 3], you learned four standard evaluation metrics -- groundedness, relevance, coherence, and fluency -- for assessing text generation quality. Agents require all of these metrics plus additional dimensions that capture tool usage, task completion, and coordination quality.
+
+=== 4.6.1 Extending Chapter 3's Metrics to Agents
+
+The four standard metrics still apply to agent outputs. When an agent produces a final text response, you should evaluate that response for groundedness (is it faithful to the data retrieved by tools?), relevance (does it address the user's question?), coherence (is it logically organized?), and fluency (is it well-written?). The key difference is that "source material" for groundedness now includes tool results, not just retrieved document chunks. An agent's response should be grounded in the data returned by its tools, and any claims not supported by tool results are potentially fabricated.
+
+=== 4.6.2 Agent-Specific Metrics
+
+Beyond text quality, agents require metrics that evaluate their operational behavior:
+
+**Tool selection accuracy** measures whether the agent chose the correct tool for each step of the task. If the user asks for a stock price and the agent calls `search_regulatory_filings` instead of `get_stock_price`, the tool selection is wrong regardless of whether the final answer happens to be correct. Tool selection accuracy is computed by comparing the agent's tool call sequence against a reference sequence for each test case.
+
+**Task completion rate** measures whether the agent actually accomplished the user's stated goal. This requires defining clear success criteria for each test case. For "What is Apple's current stock price?" the success criterion might be: the response contains a numerical stock price for AAPL that matches the current market data. Task completion is a binary metric per test case and aggregated as a percentage across the test set.
+
+**End-to-end latency** measures the total time from when the user sends a request to when the agent returns a final response. This includes all reasoning steps, tool calls, and result processing. Unlike standard chat completion, where latency is roughly proportional to response length, agent latency depends on how many tool calls are made and how long each tool takes to execute.
+
+=== 4.6.3 Multi-Agent Metrics
+
+Multi-agent systems add coordination-related metrics:
+
+**Routing correctness** measures whether the orchestrator sent each subtask to the right specialist agent. If the orchestrator correctly identifies that a question requires market data and routes it to the Market Data Agent, the routing is correct. This metric reveals whether the orchestrator's decomposition and routing logic is working as designed.
+
+**Inter-agent consistency** measures whether the outputs of multiple agents are compatible when combined. If the Market Data Agent provides data for AAPL and the Document Research Agent provides filings for MSFT because the orchestrator sent inconsistent queries, the system has an inter-agent consistency failure.
+
+**Coordination overhead** measures the additional cost (in tokens and latency) introduced by the multi-agent architecture compared to what a single agent would require. If a multi-agent system uses three times as many tokens and takes twice as long as a single agent for the same task, the coordination overhead may not be justified for that task type.
+
+=== 4.6.4 Building an Evaluation Plan for a Multi-Agent System
+
+An evaluation plan for a multi-agent system should include:
+
+. **A test set of representative user requests** spanning the full range of capabilities -- simple single-tool tasks, complex multi-step tasks, tasks that require multiple agents, and edge cases that test error handling.
+. **Success criteria for each test case** defining what constitutes a correct, complete response.
+. **Metrics to track** from both the text quality and operational categories described above.
+. **Baseline comparisons** showing how the multi-agent system performs relative to a single-agent system on the same test cases, to justify the added architectural complexity.
+. **Error analysis procedures** describing how you will investigate failures, categorize them by root cause, and feed findings back into system improvements.
+
+== 4.7 Hands-On Connections
+
+This chapter's concepts are applied directly in two lab activities. Here is what to focus on in each.
+
+=== Lab 07: Developing an AI Agent with Tool Calling
+
+In Lab 07, you will build an agent that uses tool calling to accomplish tasks that cannot be solved by text generation alone. As you work through the lab, pay attention to the following:
+
+* **Tool definition quality.** Notice how the descriptions you write for your tools affect the model's ability to select the right tool at the right time. Experiment with different description phrasings and observe the impact on tool selection accuracy.
+* **The execution lifecycle in action.** Trace the three-phase lifecycle (propose, execute, return) through your code. Identify where validation happens, where errors could occur, and where you have control over the agent's behavior.
+* **Loop termination.** Observe how your agent decides when to stop the reasoning-action loop. Does it stop when the task is complete? What happens if a tool call fails? Does the agent recover or get stuck?
+
+=== Lab 08b: Building a Multi-Agent Solution
+
+In Lab 08b, you will build a multi-agent system with an orchestrator and specialist agents. Focus on:
+
+* **Agent decomposition.** Observe how the workload is divided among specialist agents. Consider whether the decomposition makes sense -- could any two agents be merged without losing clarity? Should any agent be split further?
+* **Coordination pattern.** Identify whether the system uses sequential, parallel, or hybrid coordination. Why was that pattern chosen? What would change if you switched to a different pattern?
+* **Error propagation.** Introduce a deliberate failure (such as disconnecting a tool) and observe how the system responds. Does the error propagate gracefully? Does the orchestrator handle partial results?
+
+== 4.8 Assessment Preparation
+
+This week's assessment is an Agent Design Document (1,200-1,800 words) that asks you to architect a multi-agent system for the financial services research assistant scenario described in Section 4.1. The document has five required sections. Here is guidance for approaching each one effectively.
+
+=== Architecture Overview
+
+This section asks you to describe the overall system architecture. Think about how many agents you need and why. Do not default to "more agents is better." Justify each agent's existence by explaining what distinct domain of expertise it covers that cannot be effectively handled by another agent. Describe which coordination pattern you will use and why it fits this scenario better than alternatives.
+
+Ask yourself: if I had to explain this architecture to the firm's CTO in two minutes, what would I say? Start with the big picture before diving into details.
+
+=== Agent Specifications
+
+For each agent, you need to define its role, its tools, and its behavioral constraints. Think back to Section 4.3.1 and the system prompt design principles. What should each agent do? What should each agent _not_ do? What tools does each agent need, and what happens if those tools are unavailable?
+
+The quality of your agent specifications will be judged not just by what you include but by how clearly you define the boundaries between agents. If two agents have overlapping responsibilities, that is a design flaw you should address.
+
+=== Coordination and Handoff Design
+
+This section asks you to describe how agents communicate and pass context to each other. Consider the three context passing approaches from Section 4.4.7. Which one is most appropriate for financial data? What information does the orchestrator need to include when handing off a subtask to a specialist? What information does the specialist need to include when returning results?
+
+Think about ordering: which subtasks depend on others, and which can run in parallel? Draw out the flow before you write it up.
+
+=== Error Handling and Edge Cases
+
+This section asks you to identify what can go wrong and how the system will respond. Do not limit yourself to obvious failures like "the API is down." Think about subtle failures: what happens when a tool returns stale data? What happens when the model misinterprets a tool's result? What happens when two agents produce contradictory information?
+
+For each failure mode, describe a specific mitigation strategy. The assessment evaluates the thoroughness of your thinking, not the complexity of your solutions. A simple strategy that is clearly explained is better than a complex one that is hand-waved.
+
+=== Evaluation Plan
+
+This section asks you to describe how you would measure whether the system works well. Draw on the metrics from Section 4.6 and the evaluation framework from xref:ch03-evaluation-and-agents-intro.adoc[Chapter 3]. Define specific metrics, describe your test set, and explain what thresholds you would use to determine success.
+
+Do not forget to include baseline comparisons. How would you determine whether the multi-agent architecture is actually better than a single agent with all the tools loaded?
+
+== 4.9 Key Terms
+
+tool definition:: A structured description of a function available to an agent, including its name, a natural language description, and a JSON Schema specification of its parameters.
+
+tool calling:: The mechanism by which a language model proposes invocations of predefined functions during the generation process, enabling the system to interact with external APIs, databases, and services. Also called function calling.
+
+tool execution lifecycle:: The three-phase process of tool usage: the model proposes a tool call, the application executes it, and the result is returned to the model for further reasoning.
+
+reasoning-action loop:: The iterative cycle an agent follows -- reason about the task, select and execute a tool, observe the result, and repeat -- until the task is complete. Also known as the ReAct pattern.
+
+agent specialization:: The practice of decomposing a complex workflow into focused roles, each handled by a dedicated agent with its own system prompt, tool set, and behavioral constraints.
+
+orchestrator pattern:: A multi-agent coordination approach where a central orchestrator agent receives requests, decomposes them into subtasks, routes subtasks to specialist agents, and synthesizes results into a final response.
+
+sequential pipeline:: A coordination pattern in which agents execute one after another, with each agent's output serving as the next agent's input.
+
+parallel execution:: A coordination pattern in which independent subtasks are assigned to multiple agents that run simultaneously, reducing total latency.
+
+hybrid coordination:: A coordination approach that combines sequential and parallel patterns, parallelizing independent subtasks while sequencing dependent ones.
+
+context passing:: The mechanism by which information flows between agents in a multi-agent system, implemented through full history forwarding, summary generation, or structured data schemas.
+
+graceful degradation:: A design principle in which a system continues to provide partial value when individual components fail, rather than failing completely.
+
+max iterations:: A safety constraint that limits the number of reasoning-action cycles an agent can perform, preventing infinite loops and unbounded resource consumption.
+
+token budget:: A constraint limiting the total number of tokens an agent can consume across all reasoning steps and tool calls within a single task execution.
+
+tool selection accuracy:: An evaluation metric measuring whether the agent chose the correct tools and provided appropriate arguments for each step of a task.
+
+task completion rate:: An evaluation metric measuring whether the agent successfully accomplished the user's stated goal, verified by checking actual outcomes against defined success criteria.
+
+coordination overhead:: The additional cost in tokens, latency, and complexity introduced by a multi-agent architecture compared to a single-agent approach for the same task.
+
+== 4.10 Chapter Summary
+
+This chapter took you from understanding what agents are to knowing how to build them. You started with the mechanics of tool calling -- how tool definitions provide the model with a structured understanding of available functions, how the three-phase execution lifecycle keeps your application code in control, and why tool descriptions are the most important factor in tool selection accuracy. You built a single agent with a reasoning-action loop, learning how system prompts govern agent behavior and how constraints like max iterations and token budgets prevent runaway execution.
+
+You then scaled up to multi-agent architectures, learning four coordination patterns: sequential pipelines for ordered workflows, parallel execution for independent subtasks, the orchestrator pattern for complex decomposition, and hybrid coordination that combines the best of each. You examined how context passes between agents and why structured context passing offers the most predictable and debuggable communication channel.
+
+Error handling proved to be a defining challenge of agent systems. Tools fail, agents loop, models hallucinate tool names, and multi-agent coordination introduces routing errors and inconsistent results. You learned that explicit failure is always preferable to silent fabrication, and that graceful degradation should be designed into every layer of the system.
+
+Finally, you extended the evaluation framework from xref:ch03-evaluation-and-agents-intro.adoc[Chapter 3] with agent-specific metrics -- tool selection accuracy, task completion rate, and end-to-end latency -- and multi-agent metrics including routing correctness, inter-agent consistency, and coordination overhead.
+
+In xref:ch05-advanced-agent-patterns.adoc[Chapter 5], you will build on these foundations by exploring the Model Context Protocol (MCP) for standardized tool integration and the Azure AI Agent Framework SDK for building production-grade agent systems. The patterns you learned here -- tool definitions, reasoning loops, orchestration, error handling -- will serve as the architectural vocabulary for the more advanced implementations ahead.
