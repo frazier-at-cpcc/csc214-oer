@@ -23,10 +23,6 @@ This textbook supports an 8-week course aligned to the Microsoft AI-102 certific
 
 Written in [AsciiDoc](https://asciidoc.org/) and structured for [Antora](https://antora.org/) site generation. The rendered site will be published via GitHub Pages.
 
-## Graphics
-
-The textbook includes 44 illustration placeholders with detailed generation prompts in [`graphics-manifest.md`](graphics-manifest.md).
-
 ## License
 
 This work is licensed under a [Creative Commons Attribution-NonCommercial 4.0 International License](https://creativecommons.org/licenses/by-nc/4.0/).
