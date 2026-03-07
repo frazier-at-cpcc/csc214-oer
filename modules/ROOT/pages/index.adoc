@@ -50,4 +50,4 @@ Each chapter follows a consistent structure: an introduction with a real-world s
 
 == License
 
-This work is licensed under [License TBD]. It is an Open Educational Resource (OER) developed for CSC 214: Artificial Intelligence II at Central Piedmont Community College.
+This work is licensed under a Creative Commons Attribution-NonCommercial 4.0 International License. It is an Open Educational Resource (OER) developed for CSC 214: Artificial Intelligence II at Central Piedmont Community College.
