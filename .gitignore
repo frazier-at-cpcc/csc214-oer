@@ -4,3 +4,8 @@ node_modules/
 .worktrees/
 generate-graphics.py
 graphics-manifest.md
+ui/node_modules/
+ui/build/
+ui/public/
+*.png.tmp
+cpcc-template-*.png

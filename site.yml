@@ -2,6 +2,8 @@ site:
   title: Applied Azure AI
   url: https://frazier-at-cpcc.github.io/csc214-oer
   start_page: applied-azure-ai::index.adoc
+  keys:
+    copyright_year: '2026'
 
 content:
   sources:
@@ -10,9 +12,7 @@ content:
 
 ui:
   bundle:
-    url: https://gitlab.com/antora/antora-ui-default/-/jobs/artifacts/HEAD/raw/build/ui-bundle.zip?job=bundle-stable
-    snapshot: true
-  supplemental_files: ./ui
+    url: ./ui/build/ui-bundle.zip
 
 output:
   dir: ./build/site

@@ -24,6 +24,14 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Install UI dependencies
+        working-directory: ui
+        run: npm ci
+
+      - name: Build UI bundle
+        working-directory: ui
+        run: npx gulp bundle
+
       - name: Install Antora
         run: npm i -g @antora/cli@3.1 @antora/site-generator@3.1
 

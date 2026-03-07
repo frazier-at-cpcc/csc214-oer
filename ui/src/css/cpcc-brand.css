@@ -1,0 +1,187 @@
+/* CPCC Brand Overrides
+ * Central Piedmont Community College Brand Standards
+ * Reference: Brand Guidelines January 2026
+ */
+
+/* Header */
+.header {
+  background-color: var(--color-cp-gray);
+}
+
+.navbar-brand a,
+.navbar-brand a.navbar-item {
+  color: var(--color-cp-white);
+}
+
+.navbar-brand a:hover {
+  color: var(--color-cp-gold);
+}
+
+/* Navigation sidebar */
+.nav-panel-menu {
+  background-color: var(--color-cp-light-gray);
+}
+
+.nav-link:hover,
+.nav-item.is-active > .nav-link {
+  color: var(--color-cp-teal);
+}
+
+/* Links */
+.doc a {
+  color: var(--color-cp-teal);
+}
+
+.doc a:hover {
+  color: var(--color-cp-gold);
+}
+
+/* Headings */
+.doc h1,
+.doc h2,
+.doc h3,
+.doc h4,
+.doc h5,
+.doc h6 {
+  color: var(--color-cp-gray);
+}
+
+/* Toolbar / breadcrumbs area */
+.toolbar {
+  border-bottom: 2px solid var(--color-cp-gold);
+}
+
+/* Admonition blocks - brand-colored */
+.doc .admonitionblock.note .icon {
+  background-color: var(--color-cp-teal);
+}
+
+.doc .admonitionblock.tip .icon {
+  background-color: var(--color-cp-gold);
+}
+
+.doc .admonitionblock.warning .icon {
+  background-color: #f3c300;
+}
+
+.doc .admonitionblock.important .icon {
+  background-color: var(--color-cp-purple);
+}
+
+.doc .admonitionblock.caution .icon {
+  background-color: #d65f00;
+}
+
+/* Footer */
+.footer {
+  background-color: var(--color-cp-gray);
+  color: var(--color-cp-white);
+}
+
+.footer a {
+  color: var(--color-cp-gold);
+}
+
+/* Buttons */
+.doc .btn,
+.doc .btn-primary {
+  background-color: var(--color-cp-teal);
+  color: var(--color-cp-white);
+  border: none;
+}
+
+.doc .btn:hover,
+.doc .btn-primary:hover {
+  background-color: var(--color-cp-gold);
+}
+
+/* Table of Contents sidebar */
+.toc .toc-menu a:hover,
+.toc .toc-menu a.is-active {
+  color: var(--color-cp-teal);
+}
+
+/* Code blocks */
+.doc pre {
+  background-color: var(--color-cp-light-gray);
+  border-left: 3px solid var(--color-cp-gold);
+}
+
+/* Page version selector */
+.page-versions .version.is-current {
+  color: var(--color-cp-teal);
+}
+
+/* Selection highlight */
+::selection {
+  background-color: var(--color-cp-gold);
+  color: var(--color-cp-white);
+}
+
+/* Header logo styling */
+.header-logo {
+  height: 36px;
+  width: auto;
+  margin-right: 0.75rem;
+  padding: 20px 0;
+}
+
+.site-title {
+  color: var(--color-cp-white);
+  font-weight: 500;
+  font-size: 1.1rem;
+  white-space: nowrap;
+}
+
+.navbar-brand a:hover .site-title {
+  color: var(--color-cp-gold);
+}
+
+@media screen and (max-width: 768px) {
+  .site-title {
+    display: none;
+  }
+}
+
+/* Footer layout */
+.footer-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.5rem 2rem;
+  gap: 2rem;
+}
+
+.footer-logo-img {
+  height: 40px;
+  width: auto;
+}
+
+.footer-text {
+  text-align: right;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.footer-license a {
+  color: var(--color-cp-gold);
+  text-decoration: underline;
+}
+
+.footer-copyright {
+  margin-top: 0.25rem;
+  opacity: 0.8;
+}
+
+@media screen and (max-width: 768px) {
+  .footer-content {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .footer-text {
+    text-align: center;
+  }
+}
