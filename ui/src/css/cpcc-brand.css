@@ -170,6 +170,17 @@
   text-decoration: underline;
 }
 
+.footer-grant {
+  margin-top: 0.25rem;
+  font-size: 0.8rem;
+  opacity: 0.9;
+}
+
+.footer-grant a {
+  color: var(--color-cp-gold);
+  text-decoration: underline;
+}
+
 .footer-copyright {
   margin-top: 0.25rem;
   opacity: 0.8;
