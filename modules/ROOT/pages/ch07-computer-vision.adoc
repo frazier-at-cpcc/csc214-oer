@@ -486,8 +486,58 @@ Processing speed varies significantly across services:
 
 For the Wildlife Trust's batch processing of 50,000 weekly images, latency differences compound. Processing each image through Image Analysis at 200ms per image takes about 2.8 hours. Processing each through vision-enabled chat at 5 seconds per image would take nearly 70 hours. This is why dedicated APIs are essential for batch workloads.
 
-// Graphic G7.5: Vision service capability matrix showing services as rows and capabilities (classification, detection, text extraction, generation, open-ended reasoning) as columns
-image::ch07/g7-5-vision-capability-matrix.png[Vision Service Capability Matrix]
+.Vision Service Capability Matrix
+[cols="2,2,2,1,1,3",options="header"]
+|===
+| Service
+| Input Type
+| Output Type
+| Customizable?
+| Training Required?
+| Best For
+
+| **Image Analysis**
+| Images, Video
+| Tags, captions, objects, brands, faces, moderation
+| &#x274C; No
+| &#x274C; No
+| Broad automated understanding, visual search, content moderation
+
+| **OCR / Read API**
+| Images, Documents, Handwritten
+| Text (raw strings), layout, language, bounding boxes
+| &#x274C; No
+| &#x274C; No
+| Digitizing text from diverse documents, extracting printed and handwritten text
+
+| **Custom Vision (Classification)**
+| User-uploaded tagged image sets
+| Class probabilities, entire image labels
+| &#x2705; Yes
+| &#x2705; Yes
+| Building custom image classifiers (e.g., product defects, specific animal species)
+
+| **Custom Vision (Object Detection)**
+| User-uploaded images with bounded objects
+| Class labels, bounding box coordinates for multiple items
+| &#x2705; Yes
+| &#x2705; Yes
+| Identifying and locating custom objects within an image
+
+| **Face Detection**
+| Images, Video
+| Face rectangle coordinates, features, landmarks
+| &#x274C; No
+| &#x274C; No
+| Verifying identity, analyzing attributes, counting people
+
+| **Image Generation (DALL-E)**
+| Natural language text prompts (optional edit masks)
+| New high-quality, diverse images
+| &#x2705; Yes (prompting)
+| &#x274C; No
+| Creating artistic, unique images from text descriptions, creative content generation
+|===
 
 === 7.7.5 Cost Considerations
 
