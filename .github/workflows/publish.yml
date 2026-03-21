@@ -38,6 +38,9 @@ jobs:
       - name: Build site
         run: antora site.yml
 
+      - name: Copy worksheets to site
+        run: cp -r worksheets build/site/worksheets
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
