@@ -356,7 +356,7 @@ No single layer is sufficient on its own. Content filters can be bypassed by nov
 
 The concepts in this chapter are brought to life in two lab activities. Here is what to watch for in each.
 
-=== Lab 03: Observing Grounded vs. Ungrounded Response Differences
+=== Lab 03: Create a Generative AI App That Uses Your Own Data
 
 In Lab 03, you will send the same queries to a model with and without grounding data and compare the responses. As you work through the lab, pay attention to the following:
 
@@ -364,7 +364,7 @@ In Lab 03, you will send the same queries to a model with and without grounding 
 * **Hallucination patterns.** Notice where the ungrounded model invents details. Does it fabricate plausible-sounding but incorrect information? Does it express the same confidence in fabricated details as in accurate ones? These observations are important evidence for your written assessment.
 * **Response style.** Observe whether grounded responses differ in tone, length, or structure from ungrounded responses. Does the model cite its sources when grounding data is provided? Does it hedge more or less?
 
-=== Lab 04: Experimenting with Severity Thresholds
+=== Lab 04: Apply Content Filters to Prevent the Output of Harmful Content
 
 In Lab 04, you will configure content safety filters at different severity thresholds and observe how the filters respond to various inputs. Key observations:
 

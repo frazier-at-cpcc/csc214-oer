@@ -549,7 +549,7 @@ An evaluation plan for a multi-agent system should include:
 
 This chapter's concepts are applied directly in two lab activities. Here is what to focus on in each.
 
-=== Lab 07: Developing an AI Agent with Tool Calling
+=== Lab 07: Develop an AI Agent
 
 In Lab 07, you will build an agent that uses tool calling to accomplish tasks that cannot be solved by text generation alone. As you work through the lab, pay attention to the following:
 
@@ -557,7 +557,7 @@ In Lab 07, you will build an agent that uses tool calling to accomplish tasks th
 * **The execution lifecycle in action.** Trace the three-phase lifecycle (propose, execute, return) through your code. Identify where validation happens, where errors could occur, and where you have control over the agent's behavior.
 * **Loop termination.** Observe how your agent decides when to stop the reasoning-action loop. Does it stop when the task is complete? What happens if a tool call fails? Does the agent recover or get stuck?
 
-=== Lab 08b: Building a Multi-Agent Solution
+=== Lab 08b: Develop a Multi-Agent Solution with Azure AI Foundry
 
 In Lab 08b, you will build a multi-agent system with an orchestrator and specialist agents. Focus on:
 

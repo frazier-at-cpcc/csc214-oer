@@ -533,7 +533,7 @@ A well-scoped proposal with three services is stronger than an ambitious proposa
 
 This chapter's concepts connect to two lab experiences that let you apply what you have learned in working Azure environments.
 
-=== Lab 08c: Configuring an Agent with an MCP Server
+=== Lab 08c: Connect AI Agents to Tools Using Model Context Protocol (MCP)
 
 In Lab 08c, you will configure an agent to connect to a remote MCP server and invoke tools exposed by that server. Focus on these aspects as you work through the lab:
 
@@ -542,7 +542,7 @@ In Lab 08c, you will configure an agent to connect to a remote MCP server and in
 * **Latency.** Time your remote tool calls and compare them to local tool calls. How much latency does the network round trip add? How does this affect the user experience?
 * **Error handling.** Deliberately disconnect the MCP server or send invalid parameters. How does your agent respond? Does it degrade gracefully?
 
-=== Lab 09: Building with the Agent Framework SDK
+=== Lab 09: Develop an Azure AI Chat Agent with the Microsoft Agent Framework SDK
 
 In Lab 09, you will rebuild an agent using the Microsoft Agent Framework SDK. This lab is designed to be a direct comparison with Lab 07, where you built an agent using the direct API. Focus on:
 

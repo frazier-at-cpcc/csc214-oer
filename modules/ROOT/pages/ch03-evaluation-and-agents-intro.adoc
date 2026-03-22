@@ -304,7 +304,7 @@ These additional dimensions make agent evaluation more complex and more importan
 
 The concepts in this chapter come to life in two lab activities. Here is what to focus on in each.
 
-=== Lab 05: Evaluating Model Performance with Standard Metrics
+=== Lab 05: Evaluate Generative AI Model Performance
 
 In Lab 05, you will run evaluations against a set of test queries and examine the resulting metric scores. As you work through the lab, pay attention to the following:
 
@@ -312,7 +312,7 @@ In Lab 05, you will run evaluations against a set of test queries and examine th
 * **Metric correlation.** Notice whether low scores tend to cluster together. If a query has low groundedness, does it also tend to have low relevance? These correlations help you identify root causes.
 * **Before and after.** If the lab includes a prompt or parameter adjustment, compare the scores before and after. Which metrics improved? Did any get worse? This teaches you that improvements are often tradeoffs.
 
-=== Lab 06: Exploring AI Agents and Tool Calling
+=== Lab 06: Explore AI Agent Development
 
 In Lab 06, you will work with a simple agent that uses tool calling to complete tasks. Focus on:
 

@@ -410,7 +410,7 @@ Design pipelines to fail gracefully at each stage. If entity extraction fails on
 
 This chapter connects to five lab experiences -- the heaviest lab week in the course. Each lab focuses on a specific capability, and together they give you hands-on experience with every service discussed in this chapter.
 
-=== Lab 11: Text Analysis
+=== Lab 11: Analyze Text
 
 In Lab 11, you will use the Azure AI Language pre-built text analytics APIs to analyze sample documents. Focus on these aspects as you work through the lab:
 
@@ -418,7 +418,7 @@ In Lab 11, you will use the Azure AI Language pre-built text analytics APIs to a
 * **Entity categories.** Examine the entity categories returned by NER. Which categories are most useful for the law firm scenario? Which entity types would you need a custom model to recognize?
 * **Confidence scores.** Pay attention to the confidence scores on individual entities. Are high-confidence entities more likely to be correct? What would you set as a threshold for automated processing vs. human review?
 
-=== Lab 12: Question Answering
+=== Lab 12: Create a Question Answering Solution
 
 In Lab 12, you will build and deploy a question answering knowledge base using Azure AI Language Studio. Focus on:
 
@@ -434,7 +434,7 @@ In Lab 13, you will train and deploy a custom text classification model. Focus o
 * **Evaluation metrics.** After training, examine the precision, recall, and F1 scores for each category. Which categories does the model handle well, and which does it struggle with? Can you explain why based on the training data?
 * **Iteration.** If time permits, add more training data for underperforming categories and retrain. How much do the metrics improve?
 
-=== Lab 14: Speech Services
+=== Lab 14: Recognize and Synthesize Speech
 
 In Lab 14, you will work with Azure AI Speech services for speech-to-text and text-to-speech. Focus on:
 
@@ -442,7 +442,7 @@ In Lab 14, you will work with Azure AI Speech services for speech-to-text and te
 * **Voice selection.** Experiment with different neural voices for text-to-speech. Which voices sound most appropriate for a professional legal application?
 * **SSML control.** Use SSML to adjust pronunciation, rate, and emphasis. How does SSML improve the naturalness of synthesized speech for legal content?
 
-=== Lab 15: Audio Chat App
+=== Lab 15: Develop an Audio-Enabled Chat App
 
 In Lab 15, you will integrate speech-to-text and text-to-speech into a chat application, creating a voice-driven conversational interface. Focus on:
 
