@@ -8,6 +8,8 @@
 
 **Tech Stack:** AsciiDoc, Antora 3.1, Node 20 (UI bundle via gulp). Code samples in Python (Azure/Foundry SDKs).
 
+**Version:** This AI-103 revision bumps the Antora component version from `1.0` to **`2.0`** in `antora.yml` (the `1.0`/AI-102 edition is the prior version). The build output path changes from `applied-azure-ai/1.0/` to `applied-azure-ai/2.0/`; `site.yml`'s `start_page` is version-agnostic so 2.0 becomes the published version.
+
 **Source of truth:** `docs/superpowers/specs/2026-05-25-ai-103-realignment-design.md`. Read it before starting. Domain weights, the 22-lab list, the chapter→lab remapping (spec §5), and per-chapter transformations (spec §6) govern every task here.
 
 ---
@@ -360,7 +362,9 @@ git commit -m "docs(ch8): Content Understanding multimodal extraction + agentic 
 
 ### Task 10: Full-book consistency sweep
 
-**Files:** all `modules/ROOT/pages/*.adoc`, `README.md`, `graphics-manifest.md`
+**Files:** all `modules/ROOT/pages/*.adoc`, `README.md`, `graphics-manifest.md`, `antora.yml`
+
+- [ ] **Step 0: Bump Antora component version to 2.0.** In `antora.yml`, set `version: '2.0'` (was `'1.0'`). Rebuild and confirm output now lands under `build/site/applied-azure-ai/2.0/` and the site still resolves `index.adoc` as the start page. (Done early during execution alongside front matter.)
 
 - [ ] **Step 1: Retired-services gate (whole book).**
 ```bash
