@@ -1,646 +1,488 @@
-= Chapter 4: AI Agent Development
+= Chapter 4: Agent Knowledge & Protocols: MCP & Foundry IQ
 
 == Learning Objectives
 
 By the end of this chapter, you will be able to:
 
-. Implement an AI agent that uses tool calling to perform actions beyond text generation.
-. Design a multi-agent workflow that distributes subtasks across specialized agents.
-. Evaluate coordination patterns for multi-agent systems in a given business scenario.
+. Explain the Model Context Protocol (MCP) and connect an agent to tools exposed by an MCP server.
+. Explain agentic retrieval and integrate an agent with a Foundry IQ knowledge base.
+. Contrast a Foundry IQ knowledge base with the hand-built RAG pipeline from xref:ch02-rag-and-content-safety.adoc[Chapter 2].
 
-== 4.1 Introduction: From Concept to Implementation
+== 4.1 Introduction: Giving Agents Tools and Knowledge They Did Not Build
 
-In xref:ch03-evaluation-and-agents-intro.adoc[Chapter 3], you learned what AI agents are and when to use them. You explored the execution loop, the concept of tool calling, and the decision framework for choosing between agent and chat completion architectures. Now it is time to build one.
+In xref:ch03-evaluation-and-agents-intro.adoc[Chapter 3], you built agents that called tools you defined and deployed alongside your own application code. You wrote each tool definition by hand, implemented the handler function, and traced the tool-call lifecycle from proposal to execution to result. Every capability your agent had was a capability you authored. That is a fine starting point, but production enterprises rarely work this way.
 
-Consider the following scenario. A mid-sized financial services firm employs fifty research analysts who spend their days pulling market data from Bloomberg terminals, retrieving regulatory filings from the SEC's EDGAR database, comparing fund performance across multiple benchmarks, and assembling these findings into standardized research reports. Each analyst performs these steps dozens of times per week, and the process is remarkably consistent: gather data, retrieve documents, run comparisons, generate a report. The firm's CTO wants to build an AI-powered research assistant that can automate the repetitive parts of this workflow while keeping analysts in the loop for judgment calls.
+Consider the following scenario. A large insurance company wants to build an AI agent that helps claims adjusters process new claims faster. To do its job, the agent needs two very different things. First, it needs to *act* on systems it does not own: a CRM maintained by the sales engineering team that stores policyholder information, a ticketing system maintained by the IT operations team that tracks claim status and assignments, and a billing platform maintained by finance. Second, it needs to *know* things grounded in the company's own documents: thousands of pages of policy language, regulatory guidelines, and precedent rulings spread across SharePoint sites, a document archive in Azure Blob Storage, and a public regulatory web portal.
 
-At first glance, this looks like a straightforward chat completion problem. The analysts could type questions and get text responses. But consider what the system actually needs to do. It needs to call a market data API to pull real-time stock prices and historical performance. It needs to search a document index to retrieve relevant regulatory filings. It needs to perform calculations -- comparing returns across benchmarks, computing risk-adjusted metrics. And it needs to format its findings into structured reports that follow the firm's template. None of these tasks can be accomplished by generating text alone. Each one requires the system to take an action: calling an API, querying a database, executing a computation, formatting output.
+If you applied the Chapter 3 approach directly, you would hand-write a tool definition and handler for every endpoint across the CRM, ticketing, and billing systems -- and you would hand-build a retrieval pipeline (chunking, embedding, indexing, querying, reranking) over every document source, exactly as you did in xref:ch02-rag-and-content-safety.adoc[Chapter 2]. When the sales engineering team changes their CRM API, your agent breaks. When the compliance team adds a new document category, you re-run your ingestion pipeline. You become the bottleneck for every upstream change, and your agent's reliability depends on keeping up with several teams' release schedules at once.
 
-This is an agent problem. And not just any agent problem -- it is a problem that may require multiple agents, each specialized for a different part of the workflow. One agent might handle market data retrieval. Another might specialize in document search and summarization. A third might perform quantitative comparisons. And an orchestrating agent might coordinate the others, deciding which specialist to invoke based on the analyst's request.
+This chapter introduces two technologies that change that equation -- one for *tools* the agent acts on, one for *knowledge* the agent reasons over.
 
-Over the course of this chapter, you will learn how to build systems like this. You will start with the mechanics of tool calling -- how tools are defined, how the model selects them, and how your application executes them. Then you will build a single agent with a reasoning-action loop. From there, you will scale up to multi-agent architectures, learning the patterns that govern how agents coordinate. You will confront the error handling challenges unique to agent systems, and you will extend the evaluation framework from xref:ch03-evaluation-and-agents-intro.adoc[Chapter 3] to measure agent-specific performance. By the end, you will be ready to design and defend an agent architecture for the financial research assistant scenario.
+First, the *Model Context Protocol (MCP)* is an open standard that lets an agent discover and call tools exposed by external services through a single, uniform interface. MCP decouples your agent from the implementation details of each tool provider, much as HTTP decoupled web browsers from the implementation details of web servers. A team publishes an MCP server, your agent connects to it, and the agent learns what tools exist and how to call them -- at runtime, without you writing a line of integration code per tool.
 
-== 4.2 Tool Calling Mechanics
+Second, *Foundry IQ* is a managed knowledge layer for agents, built on Azure AI Search. Instead of hand-building the RAG pipeline you assembled in Chapter 2, you assemble a *knowledge base* from multiple *knowledge sources* and attach it to your agent. Foundry IQ performs *agentic retrieval* -- it treats retrieval itself as a reasoning task, decomposing a question into subqueries, searching multiple sources in parallel, reranking the results, and returning grounded answers with citations.
 
-In xref:ch03-evaluation-and-agents-intro.adoc[Chapter 3], you learned that tool calling is what separates agents from standard chat completions. A chat completion generates text. An agent generates text _and_ decides when to invoke external functions that interact with the world. This section examines the mechanics of tool calling in detail: how you define tools, how the model selects them, how the execution lifecycle works, and how to handle errors.
+Together, MCP and Foundry IQ move you from hand-crafted, tightly coupled integrations toward standardized, maintainable, knowledge-rich agents. Over this chapter you will learn how MCP works and how to connect an agent to MCP server tools (Lab 8), and how Foundry IQ's agentic retrieval works and how to attach a knowledge base to an agent (Lab 9). This is the middle of the three-chapter agent arc: xref:ch03-evaluation-and-agents-intro.adoc[Chapter 3] gave your agents tools they built; this chapter gives them protocols and knowledge they did not build; xref:ch05-advanced-agent-patterns.adoc[Chapter 5] will give them frameworks and the ability to work in teams.
 
-=== 4.2.1 Defining Tools: Function Name, Description, and Parameter Schema
+== 4.2 The Model Context Protocol (MCP)
 
-A **tool definition** is a structured description you provide to the model so it knows what tools are available and how to call them. Every tool definition has three essential components: a function name, a description, and a parameter schema.
+=== 4.2.1 The Problem MCP Solves: Tool Fragmentation
 
-The function name is a short, programmatic identifier like `get_stock_price` or `search_filings`. The description is a natural language explanation of what the tool does. The parameter schema specifies what inputs the tool accepts, their types, and which are required.
+In xref:ch03-evaluation-and-agents-intro.adoc[Chapter 3], you registered tools by writing JSON tool definitions and implementing handler functions in your application code. That approach works when you control both the agent and the tools. But in the insurance company scenario from Section 4.1, the tools belong to other teams. Each team exposes its capabilities through different mechanisms: the CRM team offers a REST API with OAuth 2.0 authentication, the ticketing system uses GraphQL with API key authentication, and the billing platform provides a proprietary SDK with certificate-based authentication.
 
-Here is a tool definition for the financial research assistant's market data tool:
+Without a standard protocol, you face *tool fragmentation* -- every new tool integration requires custom code for discovery (what tools are available?), authentication (how do I prove I am allowed to call this?), invocation (how do I format the request?), and response handling (how do I parse the result?). If your organization has twenty services and five agent teams, you end up with a hundred bespoke integrations, each a maintenance liability.
 
-[source,json]
-----
-{
-  "type": "function",
-  "function": {
-    "name": "get_stock_price",
-    "description": "Retrieves the current stock price and daily trading summary for a given ticker symbol. Returns the current price, daily high, daily low, opening price, and trading volume. Use this tool when the user asks about a stock's current price or today's trading activity.",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "ticker": {
-          "type": "string",
-          "description": "The stock ticker symbol, e.g., 'AAPL' for Apple Inc."
-        },
-        "include_history": {
-          "type": "boolean",
-          "description": "If true, includes the last 30 days of closing prices in addition to the current price. Defaults to false."
-        }
-      },
-      "required": ["ticker"]
-    }
-  }
-}
-----
+The *Model Context Protocol (MCP)* solves this by defining a single, open standard for how agents discover and interact with external tools. Instead of writing custom integration code for each service, you connect your agent to an MCP server, and the server tells the agent what tools are available, what parameters they accept, and how to call them -- using a uniform protocol that works the same way regardless of the underlying service.
 
-// Graphic G4.2: Tool definition anatomy showing each component of a tool definition
-image::ch04/g4-2-tool-definition-anatomy.png[Anatomy of a Tool Definition]
+=== 4.2.2 MCP Architecture: Agents as Clients, External Services as MCP Servers
 
-Notice that this definition uses JSON Schema to describe the parameters. The `ticker` parameter is required, while `include_history` is optional with a described default. The model reads this schema to understand what arguments it needs to provide when calling the tool.
+The MCP architecture follows a client-server model. Your agent acts as an *MCP client*. Each external service that wants to expose tools to agents runs an *MCP server*. The MCP server wraps the service's native API behind a standardized interface, translating between the MCP protocol and whatever the underlying service actually speaks.
 
-Here is a second tool definition for the document search function:
+// GRAPHIC TODO: renumber MCP client-server figure to ch04
+image::ch05/g5-1-mcp-client-server.png[MCP Client-Server Architecture]
 
-[source,json]
-----
-{
-  "type": "function",
-  "function": {
-    "name": "search_regulatory_filings",
-    "description": "Searches the SEC EDGAR database for regulatory filings matching a query. Returns a list of matching filings with titles, dates, filing types (10-K, 10-Q, 8-K, etc.), and brief summaries. Use this tool when the user asks about a company's regulatory filings, annual reports, or SEC submissions.",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "company_name": {
-          "type": "string",
-          "description": "The company name or CIK number to search for."
-        },
-        "filing_type": {
-          "type": "string",
-          "enum": ["10-K", "10-Q", "8-K", "DEF 14A", "S-1"],
-          "description": "The type of SEC filing to filter by. If omitted, returns all filing types."
-        },
-        "date_range_start": {
-          "type": "string",
-          "description": "Start date for the search range in YYYY-MM-DD format."
-        },
-        "date_range_end": {
-          "type": "string",
-          "description": "End date for the search range in YYYY-MM-DD format."
-        }
-      },
-      "required": ["company_name"]
-    }
-  }
-}
-----
+In the insurance company scenario, the architecture would look like this. The CRM team deploys an MCP server that wraps their REST API. This server exposes tools like `lookup_policyholder`, `get_policy_details`, and `update_contact_info`. The IT operations team deploys an MCP server that wraps their ticketing system, exposing tools like `create_claim_ticket`, `get_claim_status`, and `assign_adjuster`. The finance team deploys an MCP server that wraps their billing platform, exposing tools like `get_premium_balance` and `record_payment`.
 
-Together, these two definitions give the model a toolkit: it can pull market data and search regulatory filings. When the user asks a question, the model decides which tool (if any) to invoke based on the descriptions and schemas you have provided.
-
-=== 4.2.2 Why Tool Descriptions Matter
-
-Here is a critical insight that many developers miss: the model selects tools based on their descriptions, not their code. The model never sees the Python function that implements `get_stock_price`. It only sees the name, description, and parameter schema you provide in the tool definition. If your description is vague or misleading, the model will make poor tool selection decisions regardless of how well the underlying function works.
-
-Consider two descriptions for the same tool:
-
-* **Weak:** "Gets stock data."
-* **Strong:** "Retrieves the current stock price and daily trading summary for a given ticker symbol. Returns the current price, daily high, daily low, opening price, and trading volume. Use this tool when the user asks about a stock's current price or today's trading activity."
-
-The weak description gives the model almost nothing to work with. "Stock data" could mean historical prices, financial statements, earnings reports, or analyst ratings. The model has to guess what this tool actually does. The strong description specifies exactly what data the tool returns and exactly when to use it. The model can make an informed decision.
+Your claims processing agent connects to all three MCP servers. From the agent's perspective, these tools look identical -- same protocol, same message format, same invocation pattern. The agent does not know or care that one tool talks to a REST API and another talks to a GraphQL endpoint behind the scenes.
 
 [TIP]
 ====
-Write tool descriptions as if explaining the function to a colleague who has never seen the code. Include what the tool does, what it returns, and when to use it. The more precise your description, the more accurate the model's tool selection will be.
+Think of MCP like a USB port for AI agents -- plug in any tool server and the agent can discover and use its capabilities. Just as USB standardized how peripherals connect to computers, MCP standardizes how tools connect to agents.
 ====
 
-=== 4.2.3 The Tool Execution Lifecycle
+=== 4.2.3 The Connection Lifecycle: Initialization, Capability Negotiation, Operation
 
-The tool calling process follows a three-phase lifecycle that is essential to understand: the model proposes a call, your application executes it, and the result is returned to the model.
+An MCP connection follows a structured lifecycle with three phases: initialization, capability negotiation, and operation.
 
-// Graphic G4.1: Tool execution lifecycle showing the three phases
-image::ch04/g4-1-tool-execution-lifecycle.png[Tool Execution Lifecycle]
+// GRAPHIC TODO: renumber MCP connection lifecycle figure to ch04
+image::ch05/g5-2-mcp-connection-lifecycle.png[MCP Connection Lifecycle]
 
-**Phase 1: The model proposes a tool call.** When the model determines that it needs to use a tool, it does not execute anything. Instead, it returns a structured response indicating which tool it wants to call and what arguments to pass. This response includes the tool name, the arguments as a JSON object, and a unique tool call ID.
+*Phase 1: Initialization.* The MCP client (your agent) establishes a connection to an MCP server. The client sends an `initialize` request that includes the client's protocol version and capabilities. The server responds with its own protocol version and capabilities. This handshake ensures both sides agree on what protocol features they support.
 
-**Phase 2: Your application executes the tool.** Your application code receives the model's proposal, validates it, and executes the actual function. This is where real work happens -- the API call is made, the database is queried, the calculation is performed. Your code is fully in control of this step. You can add logging, validation, rate limiting, error handling, or any other logic before, during, and after execution.
+*Phase 2: Capability negotiation.* After initialization, the client queries the server's available capabilities. The most common query is `tools/list`, which returns a list of all tools the server exposes, including their names, descriptions, and parameter schemas. The client can also query for resources (data the server can provide) and prompts (templates the server offers). This phase is where *dynamic tool discovery* happens -- the agent learns what tools are available at runtime rather than having them hardcoded at development time.
 
-**Phase 3: The result is returned to the model.** Your application sends the tool's output back to the model as a new message in the conversation. The model reads this result and decides what to do next -- it might generate a final text response, or it might propose another tool call to gather additional information.
+*Phase 3: Operation.* With the tool catalog in hand, the agent can invoke tools using `tools/call` requests. Each request specifies the tool name and arguments, and the server returns the result. The agent can make as many tool calls as needed during a session.
 
-Here is what this looks like in Python code using the Azure OpenAI SDK:
+=== 4.2.4 Dynamic Tool Discovery
 
-[source,python]
+Dynamic tool discovery is one of MCP's most powerful features. In the Chapter 3 approach, your agent's tool list was fixed at development time -- you wrote the tool definitions in your code and deployed them. If a new tool became available, you had to update your code and redeploy.
+
+With MCP, the agent discovers available tools at connection time by calling `tools/list`. This means that when the CRM team adds a new `get_claims_history` tool to their MCP server, your agent automatically discovers it the next time it connects. You do not need to change your agent code. The server's tool list is the source of truth, and it is always current.
+
+Dynamic discovery also enables the agent to adapt to different environments. A development MCP server might expose a limited set of tools with mock data, while a production MCP server exposes the full set with real data. The same agent code works in both environments because it discovers what is available rather than assuming a fixed tool set.
+
+=== 4.2.5 MCP Message Format and Transport
+
+MCP uses *JSON-RPC 2.0* as its message format. Every message -- whether a request, response, or notification -- follows the JSON-RPC specification with a method name, parameters, and an ID for correlating requests with responses.
+
+Here is what a `tools/list` request and response look like:
+
+[source,json]
 ----
-from openai import AzureOpenAI
-import json
+// Request: Client asks the server what tools are available
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/list"
+}
 
-client = AzureOpenAI(
-    azure_endpoint="https://your-resource.openai.azure.com/",
-    api_version="2025-01-01-preview",
-    api_key="your-api-key"
-)
-
-# Define the tools
-tools = [
-    {
-        "type": "function",
-        "function": {
-            "name": "get_stock_price",
-            "description": "Retrieves the current stock price and daily trading "
-                           "summary for a given ticker symbol.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "ticker": {
-                        "type": "string",
-                        "description": "The stock ticker symbol, e.g., 'AAPL'."
-                    }
-                },
-                "required": ["ticker"]
+// Response: Server returns its tool catalog
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "tools": [
+      {
+        "name": "lookup_policyholder",
+        "description": "Retrieves policyholder information by policy number or customer name. Returns contact details, policy type, coverage limits, and claim history summary.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "policy_number": {
+              "type": "string",
+              "description": "The policy number, e.g., 'POL-2025-00421'."
+            },
+            "customer_name": {
+              "type": "string",
+              "description": "The customer's full name for fuzzy search."
             }
+          },
+          "required": []
         }
-    }
-]
-
-# Send a message with tools available
-messages = [
-    {"role": "system", "content": "You are a financial research assistant."},
-    {"role": "user", "content": "What is Apple's current stock price?"}
-]
-
-response = client.chat.completions.create(
-    model="gpt-4o",
-    messages=messages,
-    tools=tools
-)
-
-# Phase 1: The model proposes a tool call
-choice = response.choices[0]
-if choice.finish_reason == "tool_calls":
-    tool_call = choice.message.tool_calls[0]
-    function_name = tool_call.function.name    # "get_stock_price"
-    arguments = json.loads(tool_call.function.arguments)  # {"ticker": "AAPL"}
-
-    # Phase 2: Your application executes the tool
-    if function_name == "get_stock_price":
-        result = get_stock_price(arguments["ticker"])  # Your real function
-
-    # Phase 3: Return the result to the model
-    messages.append(choice.message)  # Add the assistant's tool call message
-    messages.append({
-        "role": "tool",
-        "tool_call_id": tool_call.id,
-        "content": json.dumps(result)
-    })
-
-    # The model reads the result and generates a final response
-    final_response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=messages,
-        tools=tools
-    )
-    print(final_response.choices[0].message.content)
+      },
+      {
+        "name": "get_claim_status",
+        "description": "Returns the current status and history of a claim by claim ID.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "claim_id": {
+              "type": "string",
+              "description": "The unique claim identifier."
+            }
+          },
+          "required": ["claim_id"]
+        }
+      }
+    ]
+  }
+}
 ----
+
+And here is a `tools/call` request and response:
+
+[source,json]
+----
+// Request: Client invokes the lookup_policyholder tool
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "lookup_policyholder",
+    "arguments": {
+      "policy_number": "POL-2025-00421"
+    }
+  }
+}
+
+// Response: Server returns the tool result
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"customer_name\": \"Maria Santos\", \"policy_type\": \"Homeowner\", \"coverage_limit\": 500000, \"status\": \"Active\", \"claims_filed\": 2}"
+      }
+    ]
+  }
+}
+----
+
+MCP supports two *transport mechanisms*. The first is *stdio* (standard input/output), where the MCP server runs as a local subprocess and communicates through stdin and stdout pipes. This transport is ideal for development and local tool servers. The second is *HTTP with Server-Sent Events (SSE)*, where the MCP server runs as a remote web service. The client sends requests via HTTP POST, and the server streams responses and notifications back through SSE. This transport is designed for production deployments where MCP servers run on separate infrastructure.
+
+The choice of transport does not affect the message format -- the JSON-RPC messages are identical regardless of whether they travel over stdio or HTTP. This separation of concerns means you can develop and test with stdio locally and deploy with HTTP/SSE in production without changing your tool invocation logic.
+
+=== 4.2.6 Security Considerations
+
+MCP connections cross trust boundaries, and security must be addressed at multiple layers. *Authentication* verifies the identity of the client connecting to the MCP server. For HTTP/SSE transport, this typically uses OAuth 2.0 tokens or API keys sent in request headers. For stdio transport, the security boundary is the operating system process model -- only processes that can launch the MCP server subprocess can communicate with it.
+
+*Authorization* controls which tools a given client is allowed to call. An MCP server can restrict tool access based on the client's identity -- for example, allowing the claims agent to call `lookup_policyholder` but not `delete_policy`. This is typically implemented in the MCP server's middleware layer.
+
+*Input validation* is the server's responsibility. The MCP server must validate all arguments received from clients before passing them to the underlying service. An agent might send unexpected parameter values -- whether through model hallucination or adversarial prompting -- and the server must handle these gracefully.
+
+*Transport encryption* protects data in transit. HTTP/SSE connections should always use TLS. Stdio connections are inherently local and do not traverse the network, so transport encryption is not applicable.
 
 [IMPORTANT]
 ====
-The model never executes tools directly -- your application code is the execution layer. The model only proposes tool calls by returning structured JSON. Your code decides whether to honor those proposals, how to execute them, and what results to return. This separation is a fundamental safety boundary: you control what actions the system actually takes.
+Remote tools cross trust boundaries -- validate all tool outputs before acting on them. A remote MCP server might return unexpected data formats, stale information, or even malicious content if it is compromised. Treat remote tool outputs with the same skepticism you would apply to any external API response.
 ====
-
-=== 4.2.4 Parameter Validation and Error Handling in Tool Calls
-
-Because the model generates tool call arguments as free-form JSON, you cannot blindly trust the arguments it provides. The model might produce invalid JSON, omit required parameters, provide values of the wrong type, or hallucinate parameter names that do not exist in your schema.
-
-Robust tool execution requires validation at every step:
-
-[source,python]
-----
-def execute_tool_call(tool_call, available_tools):
-    """Safely execute a tool call with validation and error handling."""
-    function_name = tool_call.function.name
-
-    # Validate: Is this a tool we actually offer?
-    if function_name not in available_tools:
-        return {"error": f"Unknown tool: {function_name}"}
-
-    # Validate: Can we parse the arguments?
-    try:
-        arguments = json.loads(tool_call.function.arguments)
-    except json.JSONDecodeError:
-        return {"error": "Invalid JSON in tool arguments"}
-
-    # Validate: Are required parameters present?
-    tool_func = available_tools[function_name]
-    required_params = tool_func.get("required_params", [])
-    for param in required_params:
-        if param not in arguments:
-            return {"error": f"Missing required parameter: {param}"}
-
-    # Execute with error handling
-    try:
-        result = tool_func["handler"](**arguments)
-        return {"success": True, "data": result}
-    except TimeoutError:
-        return {"error": "Tool execution timed out"}
-    except Exception as e:
-        return {"error": f"Tool execution failed: {str(e)}"}
-----
-
-This validation layer protects your system from two categories of problems: model errors (the model generates a bad tool call) and execution errors (the tool itself fails). Both categories need to be handled gracefully, as you will see in Section 4.5.
-
-== 4.3 Building a Single Agent
-
-With tool calling mechanics understood, you can now assemble these components into an agent -- a system that repeatedly reasons about a task, selects and executes tools, observes the results, and continues until the task is complete. This section walks through building a minimal but functional agent.
-
-=== 4.3.1 System Prompt Design for Agent Behavior
-
-The **system prompt** is where you define your agent's identity, capabilities, and constraints. For an agent, the system prompt does more than set a tone -- it governs how the agent reasons about tool usage, what it does when tools fail, and when it should stop and respond to the user.
-
-Here is a system prompt for the financial research assistant:
-
-[source,python]
-----
-system_prompt = """You are a financial research assistant for Meridian Capital
-Advisors. Your role is to help analysts gather market data, retrieve regulatory
-filings, and compile research summaries.
-
-CAPABILITIES:
-- You can look up current stock prices and trading data using the
-  get_stock_price tool.
-- You can search SEC regulatory filings using the search_regulatory_filings
-  tool.
-
-BEHAVIORAL GUIDELINES:
-- Always use tools to retrieve factual data. Do not fabricate stock prices,
-  filing dates, or financial figures.
-- If a tool call fails, inform the user what went wrong and suggest an
-  alternative approach.
-- If the user's request is outside your capabilities, say so clearly rather
-  than attempting to answer from general knowledge.
-- When presenting data from tools, cite the source (e.g., "According to the
-  market data retrieved...").
-- Limit your responses to the data returned by your tools and your ability
-  to synthesize that data. Do not speculate beyond the available information.
-"""
-----
-
-Notice how this prompt explicitly addresses tool usage behavior. It tells the agent _when_ to use tools ("always use tools to retrieve factual data"), _what to do when tools fail_ ("inform the user"), and _what not to do_ ("do not fabricate," "do not speculate"). These instructions are critical because without them, the agent may fall back to generating plausible-sounding but fabricated data instead of calling tools.
-
-=== 4.3.2 Registering Tools with the Agent
-
-Registering tools means providing the model with the list of tool definitions alongside each API call. In the Azure OpenAI SDK, you pass the `tools` parameter with your list of tool definitions. The model then knows what tools are available for any given turn of the conversation.
-
-You can also control how aggressively the model uses tools by setting the `tool_choice` parameter. Setting it to `"auto"` (the default) lets the model decide when to use tools. Setting it to `"required"` forces the model to make a tool call on every turn. Setting it to `"none"` disables tool calling entirely. You can even specify a particular tool by name to force the model to call that specific function.
-
-=== 4.3.3 The Reasoning-Action Loop in Practice
-
-The **reasoning-action loop** (sometimes called the ReAct pattern) is the core behavior pattern of an agent. The agent receives a task, reasons about what to do, takes an action (calls a tool), observes the result, and repeats until the task is complete. Here is a minimal implementation:
-
-[source,python]
-----
-def run_agent(user_message, system_prompt, tools, tool_handlers, max_iterations=10):
-    """Run an agent loop until the task is complete or max iterations reached."""
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_message}
-    ]
-
-    for iteration in range(max_iterations):
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=messages,
-            tools=tools
-        )
-
-        choice = response.choices[0]
-
-        # If the model generated a text response, the task is complete
-        if choice.finish_reason == "stop":
-            return choice.message.content
-
-        # If the model proposed tool calls, execute them
-        if choice.finish_reason == "tool_calls":
-            messages.append(choice.message)
-
-            for tool_call in choice.message.tool_calls:
-                result = execute_tool_call(tool_call, tool_handlers)
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "content": json.dumps(result)
-                })
-
-    return "I was unable to complete the task within the allowed number of steps."
-----
-
-This function captures the essential agent pattern in under thirty lines. The `for` loop is the reasoning-action loop. Each iteration gives the model a chance to either respond with text (task complete) or propose tool calls (more work to do). The `max_iterations` parameter prevents runaway loops.
-
-=== 4.3.4 Controlling Agent Behavior: Max Iterations, Token Budgets, Stop Conditions
-
-An uncontrolled agent is a dangerous agent. Without constraints, an agent can loop indefinitely, consume unlimited tokens, or pursue unproductive lines of reasoning. You need explicit controls:
-
-**Max iterations** caps how many reasoning-action cycles the agent can perform. For most tasks, 5-10 iterations is sufficient. If the agent cannot complete a task in 10 iterations, it is likely stuck in a loop or pursuing a fundamentally wrong approach.
-
-**Token budgets** limit how much context the agent can accumulate. Each tool call result adds to the conversation history, and that history is included in every subsequent API call. An agent that calls many tools can quickly exhaust the model's context window. Track cumulative token usage and stop the agent when it approaches the limit.
-
-**Stop conditions** define explicit signals that the agent should terminate. Beyond "the model generated a text response," you might define conditions such as: a critical tool has failed three times, the user's request has been fully addressed (as determined by a classifier), or a timeout has been reached.
-
-These controls are not optional safeguards -- they are essential components of any production agent. The reasoning-action loop is powerful precisely because it is open-ended, and open-ended systems require explicit boundaries.
-
-== 4.4 Multi-Agent Architecture Design
-
-A single agent with two or three tools can handle focused tasks effectively. But what happens when the scope of work grows? The financial research assistant needs to pull market data, search regulatory filings, run quantitative comparisons, check compliance rules, and generate formatted reports. Loading all of these capabilities into a single agent creates problems: the system prompt becomes unwieldy, tool selection accuracy degrades as the number of tools grows, and the agent's reasoning must cover too many domains. This is where **multi-agent architectures** become valuable.
-
-=== 4.4.1 Why Multi-Agent? When a Single Agent's Scope Becomes Too Broad
-
-The practical trigger for moving to multi-agent is not a fixed number of tools. It is the emergence of distinct domains of expertise that require different system prompts, different tool sets, and different behavioral constraints. When you find yourself writing a system prompt that says "If the user asks about X, do this; if they ask about Y, do that; if they ask about Z, do something else entirely," you are encoding routing logic into prose. A multi-agent architecture makes that routing explicit.
-
-A single agent with fifteen tools faces a combinatorial problem. The model must select the right tool from fifteen options, and it must understand the nuances of when to use each one. Research has shown that tool selection accuracy degrades as the number of available tools increases. Multi-agent systems solve this by giving each agent a small, focused toolkit where selection is straightforward.
-
-=== 4.4.2 Agent Specialization: Decomposing a Complex Task into Focused Roles
-
-**Agent specialization** means breaking a complex workflow into focused roles, each handled by a dedicated agent with its own system prompt and tool set. For the financial research assistant, this might look like:
-
-* **Market Data Agent:** System prompt focused on financial data retrieval. Tools: `get_stock_price`, `get_historical_prices`, `get_market_indices`. Behavioral constraint: only returns numerical data and factual market information, never offers investment advice.
-* **Document Research Agent:** System prompt focused on document search and summarization. Tools: `search_regulatory_filings`, `get_filing_content`, `summarize_document`. Behavioral constraint: always cites the specific filing and section when presenting information.
-* **Quantitative Analysis Agent:** System prompt focused on financial calculations. Tools: `calculate_returns`, `compare_benchmarks`, `compute_risk_metrics`. Behavioral constraint: shows its work by including the formulas and inputs used in every calculation.
-* **Report Generation Agent:** System prompt focused on formatting and compilation. Tools: `format_report`, `insert_chart`, `export_pdf`. Behavioral constraint: follows the firm's report template and style guide.
-
-Each agent is an expert in its domain. Its system prompt is concise and focused. Its tool set is small and relevant. Its behavioral constraints are specific to its role. This specialization leads to better tool selection, more coherent reasoning, and more predictable behavior.
-
-=== 4.4.3 The Orchestrator Pattern
-
-The **orchestrator pattern** is the most common coordination approach for multi-agent systems. A central orchestrator agent receives the user's request, analyzes it, decomposes it into subtasks, routes each subtask to the appropriate specialist agent, collects results, and synthesizes a final response.
-
-// Graphic G4.3: Multi-agent orchestrator pattern showing the orchestrator routing to specialist agents
-image::ch04/g4-3-multi-agent-orchestrator.png[Multi-Agent Orchestrator Pattern]
-
-In the financial research assistant, the orchestrator might work like this:
-
-. The analyst asks: "Compare Apple's stock performance to the S&P 500 over the last quarter, and check if there were any significant 8-K filings during that period."
-. The orchestrator decomposes this into two subtasks: (a) retrieve and compare stock performance data, and (b) search for 8-K filings.
-. The orchestrator routes subtask (a) to the Market Data Agent and the Quantitative Analysis Agent in sequence: first get the data, then run the comparison.
-. The orchestrator routes subtask (b) to the Document Research Agent.
-. The orchestrator collects results from all agents, passes them to the Report Generation Agent, and returns the formatted report to the analyst.
-
-The orchestrator itself is an agent with a special role. Its "tools" are the other agents. Its system prompt instructs it to analyze requests, identify which specialists are needed, determine the order of operations, and handle cases where specialist agents return errors or incomplete results.
-
-=== 4.4.4 Sequential Pipelines
-
-In a **sequential pipeline**, agents execute one after another, with each agent's output becoming the next agent's input. This pattern works well when the task has natural stages that must occur in order.
-
-For example, generating a research report might follow this pipeline:
-
-. **Data Gathering Agent** retrieves raw market data and filings.
-. **Analysis Agent** processes the raw data into insights and comparisons.
-. **Report Agent** formats the insights into a structured document.
-
-Each agent in the pipeline receives the accumulated context from all previous agents. The pipeline is simple to implement and easy to debug because you can inspect the handoff between each stage. However, it is inherently serial -- every stage must complete before the next one begins, which increases end-to-end latency.
-
-=== 4.4.5 Parallel Execution
-
-When subtasks are independent, you can execute multiple agents simultaneously. In the earlier example, retrieving stock performance data and searching for 8-K filings are independent operations. Running them in parallel reduces latency because the total time is the duration of the slowest subtask rather than the sum of all subtasks.
-
-Parallel execution requires that the orchestrator can identify which subtasks are independent and can manage concurrent execution. In Python, this might involve `asyncio` tasks or thread pools. The orchestrator launches multiple agent calls simultaneously and collects results as they complete.
-
-The challenge with parallel execution is result aggregation. When agents finish at different times and produce results in different formats, the orchestrator must reconcile these outputs into a coherent response. If one parallel branch fails while others succeed, the orchestrator must decide whether to return partial results, retry the failed branch, or report the failure.
-
-=== 4.4.6 Hybrid Coordination
-
-Most real-world multi-agent systems use **hybrid coordination** -- a combination of sequential and parallel patterns. The financial research assistant might use this structure:
-
-. **Phase 1 (parallel):** The Market Data Agent and Document Research Agent retrieve data simultaneously.
-. **Phase 2 (sequential):** The Quantitative Analysis Agent receives the market data from Phase 1 and performs comparisons.
-. **Phase 3 (sequential):** The Report Generation Agent receives all results and compiles the final report.
-
-// Graphic G4.4: Coordination patterns comparison showing sequential, parallel, and hybrid
-image::ch04/g4-4-coordination-patterns.png[Coordination Patterns Comparison]
-
-Hybrid coordination optimizes for both latency (by parallelizing independent tasks) and correctness (by sequencing dependent tasks). The orchestrator's job becomes more complex, as it must manage both parallel execution and sequential dependencies, but the result is a system that is both fast and logically sound.
-
-=== 4.4.7 Context Passing Between Agents
-
-A critical design decision in multi-agent systems is how context flows between agents. Each agent operates with its own conversation history, so you must explicitly decide what information to pass from one agent to the next.
-
-**Full context passing** means forwarding the entire conversation history from one agent to the next. This gives each agent maximum information but consumes context window space rapidly and can confuse agents with irrelevant details from other specialists' domains.
-
-**Summary context passing** means having the orchestrator summarize the results from one agent before passing them to the next. This is more token-efficient and keeps each agent focused on relevant information, but the summarization step can lose important details.
-
-**Structured context passing** means defining a fixed data format (such as a JSON object) that agents use to communicate. Each agent reads specific fields from the shared context and writes its results to designated output fields. This approach is the most predictable and easiest to debug, but requires upfront design work to define the shared schema.
-
-For the financial research assistant, structured context passing works well because financial data has natural structure -- ticker symbols, price arrays, filing metadata -- that maps cleanly to JSON fields.
 
 [NOTE]
 ====
-More agents does not mean better -- each agent adds latency, token cost, and coordination overhead. Start with the fewest agents that cleanly separate your domains of expertise, and only add agents when you have evidence that a single agent's scope is causing errors or degraded performance.
+MCP is an open standard -- the same server can be used by different agent frameworks. An MCP server you build for a Microsoft Foundry agent works equally well with agents built using other frameworks that support the MCP client protocol. This interoperability is one of the protocol's key design goals.
 ====
 
-== 4.5 Error Handling in Agent Systems
+== 4.3 Connecting an Agent to MCP Server Tools
 
-Agent systems introduce failure modes that do not exist in standard chat completion. When a model generates text, the worst outcome is a bad response. When an agent takes actions, a failure can cascade through external systems, produce corrupted data, or leave a workflow in an inconsistent state. Robust error handling is not an enhancement -- it is a requirement for any agent that operates in a production environment.
+=== 4.3.1 Registering an MCP Server with a Foundry Agent
 
-=== 4.5.1 Tool Failure Modes
+Microsoft Foundry supports MCP as a tool connection method for agents. When you create an agent in Microsoft Foundry, you can register MCP servers alongside locally defined tools. The agent treats both kinds of tools uniformly -- it discovers them, sees their schemas, and calls them using the same tool-call lifecycle you learned in xref:ch03-evaluation-and-agents-intro.adoc[Chapter 3].
 
-Tools fail in ways that regular API calls fail, plus a few modes unique to the agent context:
+To connect a Foundry agent to an MCP server, you provide the server's endpoint URL and authentication details as part of the agent's tool configuration. The agent then discovers the server's tools at connection time and can call them as part of its reasoning loop.
 
-**Timeouts.** An external API does not respond within the allotted time. The market data provider might be experiencing latency, or the SEC EDGAR system might be under heavy load. Your agent needs to handle these without assuming the tool call succeeded.
+[source,python]
+----
+# Illustrative pattern — connecting a Foundry agent to an MCP server.
+from azure.ai.projects import AIProjectClient        # <1>
+from azure.identity import DefaultAzureCredential
 
-**Invalid responses.** The tool executes successfully but returns data in an unexpected format. The stock price API might return a string where you expected a number, or the filing search might return an empty result set when you expected matches. The agent must not blindly incorporate malformed data into its reasoning.
+project_client = AIProjectClient(
+    credential=DefaultAzureCredential(),
+    endpoint="https://your-project.services.ai.azure.com"
+)
 
-**Service unavailability.** The external service is completely down. This is different from a timeout -- the service explicitly rejects the connection. Your error handling must distinguish between "try again later" (transient) and "this service is not available" (persistent).
+# Describe the MCP server the agent should connect to.
+mcp_tool = {                                          # <2>
+    "type": "mcp",
+    "server_label": "claims_ticketing",
+    "server_url": "https://mcp.ticketing.internal.company.com/sse",
+    "require_approval": "never"
+}
 
-**Rate limiting.** External APIs impose rate limits. An agent that calls `get_stock_price` fifty times in rapid succession will get throttled. Your tool execution layer must respect rate limits and queue or delay calls when necessary.
+# Create the agent with the MCP server registered as a tool source.
+agent = project_client.agents.create_agent(          # <3>
+    model="gpt-4o",
+    name="Claims Processing Assistant",
+    instructions="You help claims adjusters process insurance claims. "
+                 "Use the connected tools to look up claims and policies.",
+    tools=[mcp_tool]
+)
+----
+<1> The Foundry project client authenticates to your Azure AI project.
+<2> The MCP server is described by a label, an endpoint URL, and an approval policy that governs whether tool calls require human confirmation.
+<3> When the agent runs, it connects to the MCP server, discovers the exposed tools via `tools/list`, and may call them during its reasoning loop.
 
-=== 4.5.2 Agent-Level Failures
+Once configured, the agent automatically discovers the tools exposed by the MCP server. When the agent's reasoning loop determines that it needs to check a claim's status, it issues a `tools/call` to the remote tool just as it would call a local function -- but the execution happens on the remote MCP server.
 
-Beyond tool failures, agents can fail at the reasoning level:
-
-**Infinite loops.** The agent calls the same tool repeatedly with the same arguments, expecting different results. This happens when the agent does not interpret tool results correctly or when its reasoning gets stuck in a pattern. The `max_iterations` guard from Section 4.3.4 catches this, but you should also detect the specific pattern of repeated identical calls.
-
-**Context window exhaustion.** Each tool call adds to the conversation history. An agent handling a complex task with many tool calls can fill up the model's context window, causing the API call to fail or the model to lose track of earlier information. Monitor cumulative token usage and implement strategies such as summarizing earlier conversation history to free up context space.
-
-**Hallucinated tool names.** The model proposes a call to a tool that does not exist. This can happen when the model infers that a tool should exist based on the pattern of available tools. If you have `get_stock_price`, the model might hallucinate `get_bond_price` even though no such tool is defined. The validation layer from Section 4.2.4 catches this, but you should log these occurrences because they signal that the model is attempting actions beyond its defined capabilities.
-
-**Argument fabrication.** The model calls a real tool but fabricates argument values. For example, it might call `get_stock_price` with a ticker symbol that does not exist, or provide a date in the wrong format. Parameter validation is your defense here.
-
-=== 4.5.3 Coordination Failures in Multi-Agent Systems
-
-Multi-agent systems add a layer of failure modes related to coordination:
-
-**Routing errors.** The orchestrator sends a subtask to the wrong specialist agent. A question about regulatory filings goes to the Market Data Agent instead of the Document Research Agent. The specialist either fails to handle it or produces a poor result.
-
-**Lost context.** Information from one agent does not reach another agent that needs it. The Market Data Agent retrieves stock prices, but due to a context passing bug, the Quantitative Analysis Agent does not receive the data and either hallucinates values or reports an error.
-
-**Partial failures.** In parallel execution, some branches succeed and others fail. The orchestrator must decide how to handle mixed results. Does it return what it has, retry the failed branches, or report the entire request as failed?
-
-**Inconsistent results.** Two agents produce contradictory information. The Market Data Agent reports a stock price of $150, but the Document Research Agent finds a recent filing that states the company's stock split, meaning the price should be adjusted. Without a reconciliation mechanism, the orchestrator may pass contradictory data to the user.
-
-=== 4.5.4 Mitigation Strategies
-
-Effective agent error handling employs multiple strategies:
-
-**Retries with backoff.** For transient failures (timeouts, rate limits), retry the tool call after a delay. Use exponential backoff to avoid overwhelming the service. Limit the number of retries to prevent infinite retry loops.
-
-**Fallback tools.** When a primary tool fails, switch to an alternative. If the real-time market data API is down, fall back to a cached data source that may be slightly stale but still useful. The agent should inform the user when it uses fallback data.
-
-**Validation checks.** Validate tool results before incorporating them into the agent's reasoning. Check that stock prices are positive numbers, that dates are in valid ranges, and that filing search results contain expected fields. Return validation errors to the model so it can adjust its approach.
-
-**Human escalation.** Define conditions under which the agent should stop attempting to resolve a problem and escalate to a human. If three different approaches to answering a question have all failed, it is better to tell the analyst "I was unable to retrieve this data -- please try accessing it directly" than to return a fabricated answer.
-
-// Graphic G4.5: Error handling decision tree showing how to handle different failure types
-image::ch04/g4-5-error-handling-decision-tree.png[Error Handling Decision Tree]
-
-=== 4.5.5 Designing for Graceful Degradation
-
-**Graceful degradation** means that when parts of the system fail, the system still provides value rather than failing completely. For the financial research assistant, this might mean:
-
-* If market data is unavailable, the agent still searches and summarizes regulatory filings.
-* If the report formatting tool fails, the agent returns unformatted but accurate data.
-* If one specialist agent in a multi-agent system is down, the orchestrator completes the request with the remaining agents and notes what is missing.
-
-Designing for graceful degradation requires thinking about each tool and each agent as independently removable. If you remove any single component, can the system still provide partial value? If removing one component causes a total system failure, you have a fragile dependency that needs a fallback path.
-
-[WARNING]
+[NOTE]
 ====
-An agent that silently fails and returns a plausible-sounding but incorrect answer is more dangerous than one that explicitly reports an error. Always prefer explicit failure over silent fabrication. When a tool call fails, the agent should tell the user what failed and what information is missing, rather than filling in the gap with generated text that looks like real data.
+The exact SDK symbols for registering MCP servers (class names, parameter shapes, the `tools` payload format) vary by Foundry SDK and REST API version. The example above shows the *shape* of the integration -- a labeled server URL with an approval policy -- not an authoritative API contract. Always check the SDK version your lab environment uses.
 ====
 
-== 4.6 Evaluating Agent and Multi-Agent Systems
+=== 4.3.2 Handling Latency: MCP Tool Calls Cross the Network
 
-In xref:ch03-evaluation-and-agents-intro.adoc[Chapter 3], you learned four standard evaluation metrics -- groundedness, relevance, coherence, and fluency -- for assessing text generation quality. Agents require all of these metrics plus additional dimensions that capture tool usage, task completion, and coordination quality.
+MCP tool calls over HTTP/SSE introduce network latency that local tool calls do not have. A local tool executes in milliseconds. A remote MCP tool call involves an HTTP round trip, server-side processing, and a response -- typically adding hundreds of milliseconds to seconds per call.
 
-=== 4.6.1 Extending Chapter 3's Metrics to Agents
+This latency matters for the agent's reasoning loop. If the agent makes five sequential tool calls, each taking one second, the total wait time is five seconds before the agent can generate a response. Users notice this delay.
 
-The four standard metrics still apply to agent outputs. When an agent produces a final text response, you should evaluate that response for groundedness (is it faithful to the data retrieved by tools?), relevance (does it address the user's question?), coherence (is it logically organized?), and fluency (is it well-written?). The key difference is that "source material" for groundedness now includes tool results, not just retrieved document chunks. An agent's response should be grounded in the data returned by its tools, and any claims not supported by tool results are potentially fabricated.
+Three strategies help manage MCP tool latency. First, *batch when possible* -- if the agent needs data from multiple tools on the same MCP server, some implementations support batch requests that reduce round trips. Second, *set explicit timeouts* -- configure your agent to abandon tool calls that take too long rather than waiting indefinitely. Third, *cache tool results* where appropriate -- if a policyholder's information does not change during a single claims processing session, cache the first lookup result and reuse it.
 
-=== 4.6.2 Agent-Specific Metrics
+=== 4.3.3 Error Handling for MCP Tools
 
-Beyond text quality, agents require metrics that evaluate their operational behavior:
+MCP tools introduce failure modes that local tools do not have. The MCP server might be unreachable due to a network partition. The server might return an error because the underlying service is down. The connection might time out. The server might return a valid MCP response that contains an error message from the backend system.
 
-**Tool selection accuracy** measures whether the agent chose the correct tool for each step of the task. If the user asks for a stock price and the agent calls `search_regulatory_filings` instead of `get_stock_price`, the tool selection is wrong regardless of whether the final answer happens to be correct. Tool selection accuracy is computed by comparing the agent's tool call sequence against a reference sequence for each test case.
+Your agent needs to handle all of these gracefully. At the transport level, implement retry logic with exponential backoff for transient network failures. At the protocol level, check the MCP response for error codes and messages. At the application level, instruct your agent through its system prompt on how to behave when tools fail -- should it inform the user, try an alternative approach, or proceed with partial information?
 
-**Task completion rate** measures whether the agent actually accomplished the user's stated goal. This requires defining clear success criteria for each test case. For "What is Apple's current stock price?" the success criterion might be: the response contains a numerical stock price for AAPL that matches the current market data. Task completion is a binary metric per test case and aggregated as a percentage across the test set.
+[source,python]
+----
+import asyncio
 
-**End-to-end latency** measures the total time from when the user sends a request to when the agent returns a final response. This includes all reasoning steps, tool calls, and result processing. Unlike standard chat completion, where latency is roughly proportional to response length, agent latency depends on how many tool calls are made and how long each tool takes to execute.
+async def safe_tool_call(session, tool_name, arguments, max_retries=3):
+    """Call an MCP tool with retry logic and error handling."""
+    for attempt in range(max_retries):
+        try:
+            result = await asyncio.wait_for(
+                session.call_tool(tool_name, arguments=arguments),
+                timeout=10.0  # 10-second timeout per attempt
+            )
+            return {"success": True, "data": result.content[0].text}
+        except asyncio.TimeoutError:
+            if attempt < max_retries - 1:
+                await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                continue
+            return {"success": False, "error": "Tool call timed out after retries"}
+        except ConnectionError:
+            return {"success": False, "error": f"Cannot reach MCP server for {tool_name}"}
+        except Exception as e:
+            return {"success": False, "error": f"Tool call failed: {str(e)}"}
+----
 
-=== 4.6.3 Multi-Agent Metrics
+=== 4.3.4 When to Use MCP Servers vs. Local Tool Definitions
 
-Multi-agent systems add coordination-related metrics:
+Not every tool should be reached through MCP. Use an MCP server when the tool wraps a service maintained by another team, when the tool's implementation changes independently of your agent, or when the tool accesses data that must stay within a particular security boundary (the data never leaves the MCP server's environment -- only the result comes back to your agent).
 
-**Routing correctness** measures whether the orchestrator sent each subtask to the right specialist agent. If the orchestrator correctly identifies that a question requires market data and routes it to the Market Data Agent, the routing is correct. This metric reveals whether the orchestrator's decomposition and routing logic is working as designed.
+Use local tool definitions, like the ones you wrote in xref:ch03-evaluation-and-agents-intro.adoc[Chapter 3], when you control the tool's implementation, when low latency is critical, or when the tool is simple enough that the overhead of an MCP server is not justified. A tool that formats a date or calculates a percentage does not need its own MCP server.
 
-**Inter-agent consistency** measures whether the outputs of multiple agents are compatible when combined. If the Market Data Agent provides data for AAPL and the Document Research Agent provides filings for MSFT because the orchestrator sent inconsistent queries, the system has an inter-agent consistency failure.
+In practice, most production agents use a mix of both. The claims processing agent might define local tools for text formatting and data validation while connecting to MCP servers for CRM access, ticket management, and billing operations.
 
-**Coordination overhead** measures the additional cost (in tokens and latency) introduced by the multi-agent architecture compared to what a single agent would require. If a multi-agent system uses three times as many tokens and takes twice as long as a single agent for the same task, the coordination overhead may not be justified for that task type.
+== 4.4 Foundry IQ: A Managed Knowledge Layer for Agents
 
-=== 4.6.4 Building an Evaluation Plan for a Multi-Agent System
+MCP gives your agent *tools* -- the ability to act on external systems. But the claims processing agent also needs *knowledge*: it must answer questions grounded in the company's policy language, regulatory guidelines, and precedent rulings. In xref:ch02-rag-and-content-safety.adoc[Chapter 2], you built exactly this kind of grounding by hand: you chunked documents, generated embeddings, populated an Azure AI Search index, retrieved the top matching chunks at query time, and stuffed them into the prompt. That hand-built RAG pipeline taught you how grounding works, but it left you owning every moving part.
 
-An evaluation plan for a multi-agent system should include:
+*Foundry IQ* (part of Microsoft Foundry, generally available through the 2026-04-01 REST API) is a managed knowledge layer that an agent calls as a single, reasoning-driven knowledge source. Built on Azure AI Search, it takes over the retrieval machinery you assembled in Chapter 2 and adds a layer of reasoning on top of it.
 
-. **A test set of representative user requests** spanning the full range of capabilities -- simple single-tool tasks, complex multi-step tasks, tasks that require multiple agents, and edge cases that test error handling.
-. **Success criteria for each test case** defining what constitutes a correct, complete response.
-. **Metrics to track** from both the text quality and operational categories described above.
-. **Baseline comparisons** showing how the multi-agent system performs relative to a single-agent system on the same test cases, to justify the added architectural complexity.
-. **Error analysis procedures** describing how you will investigate failures, categorize them by root cause, and feed findings back into system improvements.
+=== 4.4.1 Knowledge Bases and Knowledge Sources
 
-== 4.7 Hands-On Connections
+The central abstraction in Foundry IQ is the *knowledge base*. A knowledge base aggregates one or more *knowledge sources* into a single retrieval target that an agent can query. A knowledge source is a connection to a place where your organization's information lives. Foundry IQ supports several kinds of knowledge sources, including:
+
+* *Azure Blob Storage* -- document archives, exported records, and unstructured files.
+* *SharePoint* -- team sites, policy libraries, and collaboration spaces.
+* *OneLake* -- data stored in the Microsoft Fabric lake.
+* *Public web* -- curated public web content, such as a regulator's public guidance portal.
+
+For the insurance claims agent, a single knowledge base might aggregate three sources: a Blob Storage container holding the precedent-ruling archive, a SharePoint site holding current policy language, and a public web source pointing at the state regulator's published guidelines. The agent does not query three separate systems with three different access patterns. It queries *one* knowledge base, and Foundry IQ fans the query out across the underlying sources.
+
+=== 4.4.2 Permission-Aware Retrieval
+
+A knowledge base is *permission-aware*. Because the underlying sources -- SharePoint, OneLake, and others -- carry their own access control, Foundry IQ can honor those permissions at query time, so a user only receives results from documents they are actually allowed to see.
+
+This matters enormously in the insurance scenario. A claims adjuster handling consumer policies should not retrieve precedent rulings sealed for legal review, and a contractor with limited access should not see internal compliance memos. With hand-built RAG, enforcing this is on you: you must propagate identity into every query and filter results yourself, which is error-prone and easy to get subtly wrong. Permission-aware retrieval pushes that enforcement down into the managed layer, so the knowledge base returns grounded answers that respect the requesting user's access rights.
+
+=== 4.4.3 Agentic Retrieval
+
+The feature that most distinguishes Foundry IQ from a classic RAG pipeline is *agentic retrieval*: Foundry IQ treats retrieval itself as a reasoning task rather than a single similarity lookup.
+
+// GRAPHIC TODO: foundry-iq-agentic-retrieval
+image::ch04/g4-6-foundry-iq-agentic-retrieval.png[Foundry IQ Agentic Retrieval]
+
+When the agent sends a question to the knowledge base, Foundry IQ does the following:
+
+. *Plans and decomposes the query.* A complex question is broken into focused *subqueries*. The question "Has our handling of the Santos water-damage claim followed both our homeowner policy language and the state's 2025 disclosure rules?" decomposes into separate subqueries -- one about homeowner policy language for water damage, one about the state's 2025 disclosure rules, and one about the handling record for that specific claim.
+. *Runs the subqueries in parallel.* Each subquery is executed across the knowledge sources at once, using *hybrid search* -- a combination of keyword (lexical) search and vector (semantic) search -- so that both exact-term matches and conceptually similar passages are retrieved.
+. *Applies semantic reranking.* The candidate results from all subqueries are scored by a *semantic reranker* that orders passages by how well they actually answer the question, not merely how well their keywords or embeddings match. Low-relevance passages are dropped.
+. *Returns grounded answers with citations.* Foundry IQ returns synthesized, grounded content along with *citations* that point back to the specific source documents and passages. The agent can surface those citations to the user, so every claim is traceable to its source.
+
+The phrase "agentic retrieval" is precise: the retrieval layer is itself doing a small amount of agent-like reasoning -- planning, decomposing, searching, and reranking -- before it ever hands results back to the calling agent. Your agent asks one question; Foundry IQ may run several searches to answer it well.
+
+=== 4.4.4 How Foundry IQ Differs from Hand-Built RAG (Chapter 2)
+
+It is worth being explicit about how a Foundry IQ knowledge base differs from the RAG pipeline you built in xref:ch02-rag-and-content-safety.adoc[Chapter 2], because they solve the same underlying problem -- grounding an answer in your documents -- in very different ways.
+
+[cols="1,2,2",options="header"]
+|===
+| Dimension | Hand-built RAG (Chapter 2) | Foundry IQ knowledge base
+
+| Who owns the pipeline
+| You: chunking, embedding, indexing, querying, and reranking are your code.
+| Microsoft Foundry: the pipeline is a managed service you configure.
+
+| Number of sources
+| Typically one index you populate and maintain.
+| Many sources (Blob, SharePoint, OneLake, web) aggregated into one knowledge base.
+
+| Retrieval strategy
+| A single similarity (or hybrid) lookup against your index per query.
+| Reasoning-driven: query planning, decomposition into subqueries, parallel hybrid search, and semantic reranking.
+
+| Query handling
+| One user question maps to one retrieval call.
+| One user question may fan out into several subqueries that are searched in parallel.
+
+| Permissions
+| You must propagate identity and filter results yourself.
+| Permission-aware retrieval honors each source's access control at query time.
+
+| Citations
+| You assemble citations from the chunks you retrieved.
+| Grounded answers come back with citations to source passages.
+
+| The agent's view
+| The agent prompts a model with chunks you fetched and injected.
+| The agent calls the knowledge base as a single knowledge tool and receives grounded, cited results.
+|===
+
+The trade-off is the familiar one between control and convenience. Hand-built RAG gives you full visibility into and control over every retrieval step -- which is why you learned it first in Chapter 2. Foundry IQ gives you a managed, multi-source, reasoning-driven retrieval layer that you attach to an agent rather than maintain yourself. For an enterprise with knowledge scattered across many systems and strict access rules, the managed layer usually wins.
+
+=== 4.4.5 Attaching a Knowledge Base to an Agent
+
+From the agent's perspective, a Foundry IQ knowledge base is a knowledge tool it can call. You create or reference a knowledge base (configured with its knowledge sources) and attach it to the agent. When the agent's reasoning determines that it needs grounded information, it queries the knowledge base and incorporates the returned, cited content into its answer.
+
+[source,python]
+----
+# Illustrative pattern — attaching a Foundry IQ knowledge base to an agent.
+from azure.ai.projects import AIProjectClient        # <1>
+from azure.identity import DefaultAzureCredential
+
+project_client = AIProjectClient(
+    credential=DefaultAzureCredential(),
+    endpoint="https://your-project.services.ai.azure.com"
+)
+
+# Reference a knowledge base that aggregates several knowledge sources
+# (Blob Storage, SharePoint, public web) configured in the Foundry portal.
+knowledge_tool = {                                    # <2>
+    "type": "knowledge_base",
+    "knowledge_base_name": "claims-policy-knowledge"
+}
+
+# Create an agent that can ground its answers in the knowledge base.
+agent = project_client.agents.create_agent(          # <3>
+    model="gpt-4o",
+    name="Claims Knowledge Assistant",
+    instructions="Answer policy and regulatory questions using the attached "
+                 "knowledge base. Always cite the source passages you rely on.",
+    tools=[knowledge_tool]
+)
+----
+<1> The Foundry project client authenticates to your Azure AI project.
+<2> The agent references a knowledge base by name; the knowledge sources and agentic-retrieval behavior are configured on the knowledge base itself.
+<3> At run time, the agent queries the knowledge base, which performs agentic retrieval and returns grounded, cited content for the agent to use.
+
+[NOTE]
+====
+As with the MCP example, exact Foundry SDK symbols and the precise `tools` payload for a knowledge base vary by SDK and REST API version (Foundry IQ is GA via the 2026-04-01 REST API). The example shows the integration *shape* -- reference a named knowledge base, attach it as a tool -- not an authoritative API contract. Confirm the symbols against the SDK version in your lab environment.
+====
+
+[TIP]
+====
+A good test of whether knowledge belongs in a Foundry IQ knowledge base versus an MCP tool: ask whether the agent needs to *read and reason over documents* (knowledge base) or *take an action against a live system* (MCP tool). Looking up policy language is knowledge; updating a claim's status is an action.
+====
+
+== 4.5 Hands-On Connections
 
 This chapter's concepts are applied directly in two lab activities. Here is what to focus on in each.
 
-=== Lab 07: Develop an AI Agent
+=== Lab 8: Develop an AI Agent with Model Context Protocol (MCP) Tools
 
-In Lab 07, you will build an agent that uses tool calling to accomplish tasks that cannot be solved by text generation alone. As you work through the lab, pay attention to the following:
+In Lab 8, you will connect a Microsoft Foundry agent to an MCP server and have it discover and invoke the server's tools. As you work through the lab, pay attention to the following:
 
-* **Tool definition quality.** Notice how the descriptions you write for your tools affect the model's ability to select the right tool at the right time. Experiment with different description phrasings and observe the impact on tool selection accuracy.
-* **The execution lifecycle in action.** Trace the three-phase lifecycle (propose, execute, return) through your code. Identify where validation happens, where errors could occur, and where you have control over the agent's behavior.
-* **Loop termination.** Observe how your agent decides when to stop the reasoning-action loop. Does it stop when the task is complete? What happens if a tool call fails? Does the agent recover or get stuck?
+* *Discovery.* Observe the tool discovery process. When your agent connects to the MCP server, what tools does it find? How do the tool names and descriptions compare to what you would write manually?
+* *Invocation.* Call a tool through the MCP connection and examine the request and response. How does the JSON-RPC message format compare to the direct tool calling approach from xref:ch03-evaluation-and-agents-intro.adoc[Chapter 3]?
+* *Latency.* Time your MCP tool calls and compare them to a local function call. How much latency does the network round trip add, and how does that affect the user experience?
+* *Error handling.* Deliberately disconnect the MCP server or send invalid parameters. How does your agent respond? Does it degrade gracefully or fail loudly?
 
-=== Lab 08b: Develop a Multi-Agent Solution with Microsoft Foundry
+=== Lab 9: Integrate an AI Agent with Foundry IQ
 
-In Lab 08b, you will build a multi-agent system with an orchestrator and specialist agents. Focus on:
+In Lab 9, you will attach a Foundry IQ knowledge base to an agent and observe agentic retrieval in action. Focus on:
 
-* **Agent decomposition.** Observe how the workload is divided among specialist agents. Consider whether the decomposition makes sense -- could any two agents be merged without losing clarity? Should any agent be split further?
-* **Coordination pattern.** Identify whether the system uses sequential, parallel, or hybrid coordination. Why was that pattern chosen? What would change if you switched to a different pattern?
-* **Error propagation.** Introduce a deliberate failure (such as disconnecting a tool) and observe how the system responds. Does the error propagate gracefully? Does the orchestrator handle partial results?
+* *Multiple sources.* Configure a knowledge base that aggregates more than one knowledge source. Ask a question that can only be answered by combining information from two sources, and confirm the agent pulls from both.
+* *Query decomposition.* Pose a compound question and inspect how Foundry IQ decomposes it into subqueries. How does this differ from the single-lookup behavior of your Chapter 2 RAG pipeline?
+* *Citations.* Examine the citations returned with each grounded answer. Trace a citation back to its source passage and verify the answer is actually supported.
+* *Contrast with Chapter 2.* Compare the effort of attaching this managed knowledge base with the effort of building the RAG pipeline by hand in xref:ch02-rag-and-content-safety.adoc[Chapter 2]. What did you no longer have to build?
 
-== 4.8 Assessment Preparation
+== 4.6 Assessment Preparation
 
-This week's assessment is an Agent Design Document (1,200-1,800 words) that asks you to architect a multi-agent system for the financial services research assistant scenario described in Section 4.1. The document has five required sections. Here is guidance for approaching each one effectively.
+This week's assessment asks you to design the *knowledge and tool layer* for the insurance claims processing agent described in Section 4.1: a short design document (approximately 1,000-1,400 words) that specifies which capabilities the agent reaches through MCP and which knowledge it reaches through Foundry IQ, and justifies each choice. The document has four required sections. Here is guidance for approaching each one.
 
-=== Architecture Overview
+=== Tools via MCP
 
-This section asks you to describe the overall system architecture. Think about how many agents you need and why. Do not default to "more agents is better." Justify each agent's existence by explaining what distinct domain of expertise it covers that cannot be effectively handled by another agent. Describe which coordination pattern you will use and why it fits this scenario better than alternatives.
+Identify which of the agent's capabilities should be reached through MCP servers rather than local tool definitions. For each, name the owning team and the backend system, and explain *why* MCP is the right choice -- using the criteria from Section 4.3.4 (another team owns it, it changes independently, or it must stay inside a security boundary). Do not route everything through MCP; call out at least one capability that is better as a local tool and say why.
 
-Ask yourself: if I had to explain this architecture to the firm's CTO in two minutes, what would I say? Start with the big picture before diving into details.
+=== Knowledge via Foundry IQ
 
-=== Agent Specifications
+Specify the knowledge base your agent will use and the knowledge sources it aggregates. For each source (Blob Storage, SharePoint, OneLake, or public web), explain what information it provides and why it belongs in the knowledge base. Address permission-aware retrieval explicitly: which users should see which sources, and how does the managed layer enforce that?
 
-For each agent, you need to define its role, its tools, and its behavioral constraints. Think back to Section 4.3.1 and the system prompt design principles. What should each agent do? What should each agent _not_ do? What tools does each agent need, and what happens if those tools are unavailable?
+=== Agentic Retrieval and the Contrast with Hand-Built RAG
 
-The quality of your agent specifications will be judged not just by what you include but by how clearly you define the boundaries between agents. If two agents have overlapping responsibilities, that is a design flaw you should address.
+Choose one realistic compound question an adjuster might ask, and trace how agentic retrieval would handle it: how it decomposes into subqueries, which sources each subquery hits, how reranking selects the best passages, and what citations come back. Then contrast this with how you would have answered the same question using the Chapter 2 hand-built RAG pipeline. Be specific about what the managed layer does that your hand-built pipeline did not.
 
-=== Coordination and Handoff Design
+=== Failure and Trust Boundaries
 
-This section asks you to describe how agents communicate and pass context to each other. Consider the three context passing approaches from Section 4.4.7. Which one is most appropriate for financial data? What information does the orchestrator need to include when handing off a subtask to a specialist? What information does the specialist need to include when returning results?
+Identify what can go wrong across both layers. For MCP: unreachable servers, timeouts, and untrusted tool output crossing a trust boundary. For Foundry IQ: a source that is stale, a permission misconfiguration, or an answer whose citations do not actually support it. For each failure mode, describe a specific mitigation. The assessment rewards thoroughness of thinking, not complexity -- a simple, clearly explained mitigation beats a hand-waved complex one.
 
-Think about ordering: which subtasks depend on others, and which can run in parallel? Draw out the flow before you write it up.
+== 4.7 Key Terms
 
-=== Error Handling and Edge Cases
+Model Context Protocol (MCP):: An open standard protocol that defines how AI agents discover and interact with external tools through a uniform client-server interface, using JSON-RPC 2.0 messaging.
 
-This section asks you to identify what can go wrong and how the system will respond. Do not limit yourself to obvious failures like "the API is down." Think about subtle failures: what happens when a tool returns stale data? What happens when the model misinterprets a tool's result? What happens when two agents produce contradictory information?
+MCP client:: The agent-side component that connects to MCP servers, discovers available tools, and invokes them on behalf of the agent.
 
-For each failure mode, describe a specific mitigation strategy. The assessment evaluates the thoroughness of your thinking, not the complexity of your solutions. A simple strategy that is clearly explained is better than a complex one that is hand-waved.
+MCP server:: A service that wraps an external system's capabilities behind the MCP protocol, exposing them as discoverable tools that any MCP-compatible agent can call.
 
-=== Evaluation Plan
+tool fragmentation:: The problem of maintaining separate, custom integration code for each external service an agent needs to access, resulting in high maintenance costs and brittle connections.
 
-This section asks you to describe how you would measure whether the system works well. Draw on the metrics from Section 4.6 and the evaluation framework from xref:ch03-evaluation-and-agents-intro.adoc[Chapter 3]. Define specific metrics, describe your test set, and explain what thresholds you would use to determine success.
+dynamic tool discovery:: The capability of an agent to learn what tools are available at runtime by querying an MCP server, rather than having tools hardcoded at development time.
 
-Do not forget to include baseline comparisons. How would you determine whether the multi-agent architecture is actually better than a single agent with all the tools loaded?
+JSON-RPC 2.0:: The message format used by MCP for all communication between clients and servers, providing a standardized structure for requests, responses, and notifications.
 
-== 4.9 Key Terms
+stdio transport:: An MCP transport mechanism where the client and server communicate through the standard input and output streams of a local subprocess, used primarily for development and testing.
 
-tool definition:: A structured description of a function available to an agent, including its name, a natural language description, and a JSON Schema specification of its parameters.
+HTTP/SSE transport:: An MCP transport mechanism where the client sends requests via HTTP POST and the server streams responses through Server-Sent Events, designed for production remote deployments.
 
-tool calling:: The mechanism by which a language model proposes invocations of predefined functions during the generation process, enabling the system to interact with external APIs, databases, and services. Also called function calling.
+capability negotiation:: The phase of the MCP connection lifecycle in which the client and server exchange information about their supported features and available tools.
 
-tool execution lifecycle:: The three-phase process of tool usage: the model proposes a tool call, the application executes it, and the result is returned to the model for further reasoning.
+Foundry IQ:: A managed knowledge layer in Microsoft Foundry, built on Azure AI Search, that an agent calls as a single, reasoning-driven knowledge source rather than hand-building a retrieval pipeline.
 
-reasoning-action loop:: The iterative cycle an agent follows -- reason about the task, select and execute a tool, observe the result, and repeat -- until the task is complete. Also known as the ReAct pattern.
+knowledge base:: In Foundry IQ, a retrieval target that aggregates one or more knowledge sources and serves grounded, cited answers to an agent through agentic retrieval.
 
-agent specialization:: The practice of decomposing a complex workflow into focused roles, each handled by a dedicated agent with its own system prompt, tool set, and behavioral constraints.
+knowledge source:: A connection to a place where an organization's information lives -- such as Azure Blob Storage, SharePoint, OneLake, or curated public web content -- that can be aggregated into a Foundry IQ knowledge base.
 
-orchestrator pattern:: A multi-agent coordination approach where a central orchestrator agent receives requests, decomposes them into subtasks, routes subtasks to specialist agents, and synthesizes results into a final response.
+agentic retrieval:: A retrieval approach that treats answering a query as a reasoning task -- planning and decomposing the query into subqueries, running them in parallel with hybrid search, applying semantic reranking, and returning grounded answers with citations.
 
-sequential pipeline:: A coordination pattern in which agents execute one after another, with each agent's output serving as the next agent's input.
+permission-aware retrieval:: Retrieval that honors the access controls of the underlying knowledge sources at query time, so a user only receives results from documents they are authorized to see.
 
-parallel execution:: A coordination pattern in which independent subtasks are assigned to multiple agents that run simultaneously, reducing total latency.
+hybrid search:: A search strategy that combines keyword (lexical) matching with vector (semantic) matching so that both exact-term and conceptually similar results are retrieved.
 
-hybrid coordination:: A coordination approach that combines sequential and parallel patterns, parallelizing independent subtasks while sequencing dependent ones.
+semantic reranking:: A step that reorders candidate retrieval results by how well they actually answer the question, rather than by raw keyword or embedding similarity.
 
-context passing:: The mechanism by which information flows between agents in a multi-agent system, implemented through full history forwarding, summary generation, or structured data schemas.
+trust boundary:: A point in a system architecture where data or control passes between components with different levels of trust, requiring validation and security checks at the crossing point.
 
-graceful degradation:: A design principle in which a system continues to provide partial value when individual components fail, rather than failing completely.
+== 4.8 Chapter Summary
 
-max iterations:: A safety constraint that limits the number of reasoning-action cycles an agent can perform, preventing infinite loops and unbounded resource consumption.
+This chapter gave your agents two things they did not build themselves: tools to act with and knowledge to reason over. You learned how the Model Context Protocol provides a uniform, open interface for agents to discover and call tools exposed by external services, eliminating the tool fragmentation problem that arises when many teams maintain many services. You walked through the MCP connection lifecycle -- initialization, capability negotiation, and operation -- and saw how JSON-RPC 2.0 messaging over stdio or HTTP/SSE transport supports both local development and remote production deployments. You then connected a Foundry agent to an MCP server, managed the latency and failure modes that come with crossing the network, and learned when a capability belongs in an MCP server versus a local tool definition.
 
-token budget:: A constraint limiting the total number of tokens an agent can consume across all reasoning steps and tool calls within a single task execution.
+You then turned from tools to knowledge with Foundry IQ, a managed knowledge layer built on Azure AI Search. You learned how a knowledge base aggregates multiple knowledge sources -- Blob Storage, SharePoint, OneLake, and public web -- behind a single query target, and how permission-aware retrieval honors each source's access controls. You examined agentic retrieval, in which the retrieval layer plans and decomposes a query into subqueries, runs them in parallel with hybrid search, applies semantic reranking, and returns grounded answers with citations. Most importantly, you contrasted this managed, reasoning-driven layer with the hand-built RAG pipeline from xref:ch02-rag-and-content-safety.adoc[Chapter 2], trading control for convenience when knowledge is spread across many systems with strict access rules.
 
-tool selection accuracy:: An evaluation metric measuring whether the agent chose the correct tools and provided appropriate arguments for each step of a task.
-
-task completion rate:: An evaluation metric measuring whether the agent successfully accomplished the user's stated goal, verified by checking actual outcomes against defined success criteria.
-
-coordination overhead:: The additional cost in tokens, latency, and complexity introduced by a multi-agent architecture compared to a single-agent approach for the same task.
-
-== 4.10 Chapter Summary
-
-This chapter took you from understanding what agents are to knowing how to build them. You started with the mechanics of tool calling -- how tool definitions provide the model with a structured understanding of available functions, how the three-phase execution lifecycle keeps your application code in control, and why tool descriptions are the most important factor in tool selection accuracy. You built a single agent with a reasoning-action loop, learning how system prompts govern agent behavior and how constraints like max iterations and token budgets prevent runaway execution.
-
-You then scaled up to multi-agent architectures, learning four coordination patterns: sequential pipelines for ordered workflows, parallel execution for independent subtasks, the orchestrator pattern for complex decomposition, and hybrid coordination that combines the best of each. You examined how context passes between agents and why structured context passing offers the most predictable and debuggable communication channel.
-
-Error handling proved to be a defining challenge of agent systems. Tools fail, agents loop, models hallucinate tool names, and multi-agent coordination introduces routing errors and inconsistent results. You learned that explicit failure is always preferable to silent fabrication, and that graceful degradation should be designed into every layer of the system.
-
-Finally, you extended the evaluation framework from xref:ch03-evaluation-and-agents-intro.adoc[Chapter 3] with agent-specific metrics -- tool selection accuracy, task completion rate, and end-to-end latency -- and multi-agent metrics including routing correctness, inter-agent consistency, and coordination overhead.
-
-In xref:ch05-advanced-agent-patterns.adoc[Chapter 5], you will build on these foundations by exploring the Model Context Protocol (MCP) for standardized tool integration and the Azure AI Agent Framework SDK for building production-grade agent systems. The patterns you learned here -- tool definitions, reasoning loops, orchestration, error handling -- will serve as the architectural vocabulary for the more advanced implementations ahead.
+In xref:ch05-advanced-agent-patterns.adoc[Chapter 5], Agent Frameworks & Multi-Agent Orchestration, you will move from connecting a single agent to its tools and knowledge toward building agents with higher-level frameworks and coordinating multiple specialized agents into a single system. The tools and knowledge layers you assembled here -- MCP-connected actions and Foundry IQ knowledge -- become the capabilities that those framework-built, multi-agent systems draw on.
