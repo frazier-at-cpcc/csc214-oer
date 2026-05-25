@@ -175,7 +175,7 @@ MCP connections cross trust boundaries, and security must be addressed at multip
 
 [NOTE]
 ====
-MCP is an open standard -- the same server can be used by different agent frameworks. An MCP server you build for an Microsoft Foundry agent works equally well with agents built using LangChain, Semantic Kernel, or any other framework that supports the MCP client protocol. This interoperability is one of the protocol's key design goals.
+MCP is an open standard -- the same server can be used by different agent frameworks. An MCP server you build for a Microsoft Foundry agent works equally well with agents built using LangChain, Semantic Kernel, or any other framework that supports the MCP client protocol. This interoperability is one of the protocol's key design goals.
 ====
 
 Here is a minimal example of an MCP server that registers a tool and an agent that discovers and calls it:
@@ -254,7 +254,7 @@ This example demonstrates the full lifecycle: the server registers a tool with a
 
 Microsoft Foundry supports MCP as a tool connection method for agents. When you create an agent in Microsoft Foundry, you can register remote MCP servers alongside locally defined tools. The agent treats both kinds of tools uniformly -- it discovers them, sees their schemas, and calls them using the same reasoning-action loop you learned in xref:ch04-agent-development.adoc[Chapter 4].
 
-To connect an Microsoft Foundry agent to a remote MCP server, you provide the server's endpoint URL and authentication credentials as part of the agent's tool configuration. Here is how this looks using the Azure AI Projects SDK:
+To connect a Microsoft Foundry agent to a remote MCP server, you provide the server's endpoint URL and authentication credentials as part of the agent's tool configuration. Here is how this looks using the Azure AI Projects SDK:
 
 [source,python]
 ----
