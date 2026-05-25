@@ -50,16 +50,16 @@ Your claims processing agent connects to all three MCP servers. From the agent's
 Think of MCP like a USB port for AI agents -- plug in any tool server and the agent can discover and use its capabilities. Just as USB standardized how peripherals connect to computers, MCP standardizes how tools connect to agents.
 ====
 
-=== 4.2.3 The Connection Lifecycle: Initialization, Capability Negotiation, Operation
+=== 4.2.3 The Connection Lifecycle: Initialization, Discovery, Operation
 
-An MCP connection follows a structured lifecycle with three phases: initialization, capability negotiation, and operation.
+An MCP connection follows a structured lifecycle with three phases: initialization, discovery, and operation.
 
 // GRAPHIC TODO: renumber MCP connection lifecycle figure to ch04
 image::ch05/g5-2-mcp-connection-lifecycle.png[MCP Connection Lifecycle]
 
-*Phase 1: Initialization.* The MCP client (your agent) establishes a connection to an MCP server. The client sends an `initialize` request that includes the client's protocol version and capabilities. The server responds with its own protocol version and capabilities. This handshake ensures both sides agree on what protocol features they support.
+*Phase 1: Initialization.* The MCP client (your agent) establishes a connection to an MCP server. The client sends an `initialize` request that includes the client's protocol version and capabilities. The server responds with its own protocol version and capabilities. This handshake ensures both sides agree on what protocol features they support -- capability negotiation happens here, during the `initialize` exchange, not as a separate later step.
 
-*Phase 2: Capability negotiation.* After initialization, the client queries the server's available capabilities. The most common query is `tools/list`, which returns a list of all tools the server exposes, including their names, descriptions, and parameter schemas. The client can also query for resources (data the server can provide) and prompts (templates the server offers). This phase is where *dynamic tool discovery* happens -- the agent learns what tools are available at runtime rather than having them hardcoded at development time.
+*Phase 2: Discovery.* After the `initialize` handshake completes, the client queries the server's available tools. The most common query is `tools/list`, which returns a list of all tools the server exposes, including their names, descriptions, and parameter schemas. The client can also query for resources (data the server can provide) and prompts (templates the server offers). This phase is where *dynamic tool discovery* happens -- the agent learns what tools are available at runtime rather than having them hardcoded at development time.
 
 *Phase 3: Operation.* With the tool catalog in hand, the agent can invoke tools using `tools/call` requests. Each request specifies the tool name and arguments, and the server returns the result. The agent can make as many tool calls as needed during a session.
 
@@ -282,7 +282,7 @@ In practice, most production agents use a mix of both. The claims processing age
 
 MCP gives your agent *tools* -- the ability to act on external systems. But the claims processing agent also needs *knowledge*: it must answer questions grounded in the company's policy language, regulatory guidelines, and precedent rulings. In xref:ch02-rag-and-content-safety.adoc[Chapter 2], you built exactly this kind of grounding by hand: you chunked documents, generated embeddings, populated an Azure AI Search index, retrieved the top matching chunks at query time, and stuffed them into the prompt. That hand-built RAG pipeline taught you how grounding works, but it left you owning every moving part.
 
-*Foundry IQ* (part of Microsoft Foundry, generally available through the 2026-04-01 REST API) is a managed knowledge layer that an agent calls as a single, reasoning-driven knowledge source. Built on Azure AI Search, it takes over the retrieval machinery you assembled in Chapter 2 and adds a layer of reasoning on top of it.
+*Foundry IQ* (part of Microsoft Foundry, available through the 2026-04-01 REST API -- confirm the current version for your environment) is a managed knowledge layer that an agent calls as a single, reasoning-driven knowledge source. Built on Azure AI Search, it takes over the retrieval machinery you assembled in Chapter 2 and adds a layer of reasoning on top of it.
 
 === 4.4.1 Knowledge Bases and Knowledge Sources
 
@@ -393,7 +393,7 @@ agent = project_client.agents.create_agent(          # <3>
 
 [NOTE]
 ====
-As with the MCP example, exact Foundry SDK symbols and the precise `tools` payload for a knowledge base vary by SDK and REST API version (Foundry IQ is GA via the 2026-04-01 REST API). The example shows the integration *shape* -- reference a named knowledge base, attach it as a tool -- not an authoritative API contract. Confirm the symbols against the SDK version in your lab environment.
+As with the MCP example, exact Foundry SDK symbols and the precise `tools` payload for a knowledge base vary by SDK and REST API version (the 2026-04-01 REST API was current at time of writing -- confirm the current version for your environment). The example shows the integration *shape* -- reference a named knowledge base, attach it as a tool -- not an authoritative API contract. Confirm the symbols against the SDK version in your lab environment.
 ====
 
 [TIP]
@@ -461,7 +461,7 @@ stdio transport:: An MCP transport mechanism where the client and server communi
 
 HTTP/SSE transport:: An MCP transport mechanism where the client sends requests via HTTP POST and the server streams responses through Server-Sent Events, designed for production remote deployments.
 
-capability negotiation:: The phase of the MCP connection lifecycle in which the client and server exchange information about their supported features and available tools.
+capability negotiation:: The exchange during the MCP `initialize` handshake in which the client and server agree on protocol version and supported features. Tool discovery via `tools/list` follows in the separate Discovery phase.
 
 Foundry IQ:: A managed knowledge layer in Microsoft Foundry, built on Azure AI Search, that an agent calls as a single, reasoning-driven knowledge source rather than hand-building a retrieval pipeline.
 
@@ -481,7 +481,7 @@ trust boundary:: A point in a system architecture where data or control passes b
 
 == 4.8 Chapter Summary
 
-This chapter gave your agents two things they did not build themselves: tools to act with and knowledge to reason over. You learned how the Model Context Protocol provides a uniform, open interface for agents to discover and call tools exposed by external services, eliminating the tool fragmentation problem that arises when many teams maintain many services. You walked through the MCP connection lifecycle -- initialization, capability negotiation, and operation -- and saw how JSON-RPC 2.0 messaging over stdio or HTTP/SSE transport supports both local development and remote production deployments. You then connected a Foundry agent to an MCP server, managed the latency and failure modes that come with crossing the network, and learned when a capability belongs in an MCP server versus a local tool definition.
+This chapter gave your agents two things they did not build themselves: tools to act with and knowledge to reason over. You learned how the Model Context Protocol provides a uniform, open interface for agents to discover and call tools exposed by external services, eliminating the tool fragmentation problem that arises when many teams maintain many services. You walked through the MCP connection lifecycle -- initialization (where capability negotiation occurs), discovery (where `tools/list` is called), and operation -- and saw how JSON-RPC 2.0 messaging over stdio or HTTP/SSE transport supports both local development and remote production deployments. You then connected a Foundry agent to an MCP server, managed the latency and failure modes that come with crossing the network, and learned when a capability belongs in an MCP server versus a local tool definition.
 
 You then turned from tools to knowledge with Foundry IQ, a managed knowledge layer built on Azure AI Search. You learned how a knowledge base aggregates multiple knowledge sources -- Blob Storage, SharePoint, OneLake, and public web -- behind a single query target, and how permission-aware retrieval honors each source's access controls. You examined agentic retrieval, in which the retrieval layer plans and decomposes a query into subqueries, runs them in parallel with hybrid search, applies semantic reranking, and returns grounded answers with citations. Most importantly, you contrasted this managed, reasoning-driven layer with the hand-built RAG pipeline from xref:ch02-rag-and-content-safety.adoc[Chapter 2], trading control for convenience when knowledge is spread across many systems with strict access rules.
 
