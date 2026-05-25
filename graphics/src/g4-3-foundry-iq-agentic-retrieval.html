@@ -1,0 +1,91 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="style.css">
+<style>
+.step-box{padding:24px 28px;border-radius:14px;font-size:28px;font-weight:600;text-align:center;flex:1;}
+.step-arrow{font-size:36px;color:var(--muted);align-self:center;flex-shrink:0;padding:0 8px;}
+.source-chip{display:inline-block;padding:12px 24px;border-radius:10px;font-size:26px;font-weight:600;margin:6px;}
+.lock-label{font-size:26px;color:var(--muted);margin-top:12px;display:flex;align-items:center;gap:10px;}
+</style>
+</head>
+<body>
+<div id="fig">
+  <h1 class="fig-title">Foundry IQ: Agentic Retrieval</h1>
+  <p class="fig-sub">Retrieval as reasoning, not keyword lookup</p>
+
+  <div class="row" style="align-items:center;margin-bottom:48px;">
+
+    <!-- Agent box -->
+    <div class="box purple" style="width:260px;flex-shrink:0;text-align:center;padding:40px 28px;">
+      <div style="font-size:40px;font-weight:700;color:var(--purple);">Agent</div>
+      <div style="font-size:26px;color:var(--muted);margin-top:8px;">LLM + Tools</div>
+    </div>
+
+    <!-- Arrow out -->
+    <div style="display:flex;flex-direction:column;align-items:center;width:120px;flex-shrink:0;">
+      <div style="font-size:24px;color:var(--muted);margin-bottom:4px;">query</div>
+      <div class="arrow" style="width:100px;"></div>
+    </div>
+
+    <!-- Knowledge base block -->
+    <div style="flex:1;">
+      <div class="box blue" style="padding:36px 40px;">
+        <div style="font-size:38px;font-weight:700;color:var(--blue);margin-bottom:28px;">Knowledge Base (Foundry IQ)</div>
+
+        <!-- 4-step pipeline -->
+        <div class="row" style="gap:12px;margin-bottom:28px;align-items:stretch;">
+          <div class="step-box" style="background:var(--blue-bg);color:var(--blue);border:2px solid var(--blue);">
+            <div style="font-size:24px;font-weight:700;margin-bottom:6px;">1</div>
+            Plan &amp; Decompose
+          </div>
+          <span class="step-arrow">→</span>
+          <div class="step-box" style="background:var(--teal-bg);color:var(--teal);border:2px solid var(--teal);">
+            <div style="font-size:24px;font-weight:700;margin-bottom:6px;">2</div>
+            Parallel Search
+            <div style="font-size:22px;font-weight:400;color:var(--muted);margin-top:6px;">keyword · vector · hybrid</div>
+          </div>
+          <span class="step-arrow">→</span>
+          <div class="step-box" style="background:var(--blue-bg);color:var(--blue);border:2px solid var(--blue);">
+            <div style="font-size:24px;font-weight:700;margin-bottom:6px;">3</div>
+            Semantic Rerank
+          </div>
+          <span class="step-arrow">→</span>
+          <div class="step-box" style="background:var(--green-bg);color:var(--green);border:2px solid var(--green);">
+            <div style="font-size:24px;font-weight:700;margin-bottom:6px;">4</div>
+            Grounded Answer + Citations
+          </div>
+        </div>
+
+        <!-- Sources -->
+        <div style="margin-top:20px;">
+          <div style="font-size:26px;font-weight:600;color:var(--muted);margin-bottom:12px;">Data sources:</div>
+          <div>
+            <span class="source-chip tag teal">Blob Storage</span>
+            <span class="source-chip tag teal">SharePoint</span>
+            <span class="source-chip tag teal">OneLake</span>
+            <span class="source-chip tag teal">Web</span>
+          </div>
+          <div class="lock-label">
+            <span style="font-size:30px;">🔒</span>
+            <span>Permission-aware — results filtered by caller's identity</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Return arrow -->
+    <div style="display:flex;flex-direction:column;align-items:center;width:140px;flex-shrink:0;">
+      <div style="font-size:22px;color:var(--muted);margin-bottom:4px;text-align:center;">answer + citations</div>
+      <div style="height:6px;width:100px;background:var(--green);border-radius:3px;position:relative;">
+        <div style="position:absolute;left:-2px;top:-11px;border-right:26px solid var(--green);border-top:14px solid transparent;border-bottom:14px solid transparent;"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <p class="note">Retrieval as reasoning, not keyword lookup — Lab 9.</p>
+</div>
+</body>
+</html>

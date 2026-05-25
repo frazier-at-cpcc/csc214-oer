@@ -42,8 +42,6 @@ Consider a discharge summary that arrives as a scanned PDF. Raw optical characte
 
 Content Understanding adds the layers OCR is missing. On top of OCR it performs *layout analysis* -- identifying paragraphs, reading order, tables, selection marks, and section headings -- and *field extraction* -- mapping the recognized content to named fields you define. The result is not a wall of text; it is a structured, labeled rendering of the document.
 
-// GRAPHIC TODO: update to content-understanding-extraction
-// Graphic G8.1: Content Understanding extraction showing a sample insurance form processed through OCR, layout analysis, and field extraction, contrasting raw OCR strings with the structured markdown/JSON grounded representation
 image::ch08/g8-1-content-understanding-extraction.png[Content Understanding Multimodal Extraction]
 
 === 8.2.2 The Multimodal Extraction Pipeline: OCR, Layout, Field Extraction
@@ -168,8 +166,6 @@ In xref:ch05-advanced-agent-patterns.adoc[Chapter 5], you encountered the broade
 
 You know that generative models provide flexible reasoning but at higher per-token cost and variable latency. You know that dedicated services -- text analysis, speech, vision, and Content Understanding extraction -- provide optimized, lower-cost processing for specific tasks. You know that Foundry IQ and retrieval connect stored knowledge to generative reasoning. And you know that agents orchestrate these pieces into workflows that accomplish complex goals. That depth is what separates an effective AI solution architect from someone who simply lists services: you know not just *what* each service does but *when* it is the right choice and how it interacts with the others.
 
-// GRAPHIC TODO: update solution architecture to AI-103 agentic/multimodal
-// Graphic G8.6: Reference architecture for an agentic multimodal solution -- multimodal input flows through Content Understanding extraction into grounded representations, which feed Foundry IQ knowledge and a RAG retrieval layer; an agent (with tools/MCP) reasons over them; supporting services (Key Vault, Storage, Monitor) wrap the whole
 image::ch08/g8-2-solution-architecture-template.png[Agentic Multimodal Solution Architecture Template]
 
 === 8.5.2 Common Integration Patterns

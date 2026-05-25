@@ -155,8 +155,6 @@ A single prompt analyzes one document. A *text-analysis agent* analyzes a stream
 
 Recall from earlier chapters that an agent is a language model equipped with instructions, tools, and the autonomy to decide which tools to call. A *text-analysis agent* is an agent whose job is text analysis. Its system instructions describe the firm's domain (practice areas, the fields to extract, the tone labels that matter). Its tools include the structured-extraction prompt from Section 6.2, the *Azure Translator Foundry Tool*, and perhaps a language-analysis Foundry Tool for tasks where a deterministic service is required. Given a document, the agent decides: Is this English? If not, call Translator. Does it look like a contract or correspondence? Apply the appropriate extraction schema. Are there safety or conflict flags? Surface them.
 
-// GRAPHIC TODO: text-analysis-agent
-// Graphic G6.7: Text-analysis agent showing the agent receiving a document, selecting between an extraction prompt, the Translator Foundry Tool, and a language-analysis tool, and emitting a structured record
 image::ch06/g6-2-text-analysis-agent.png[Text-Analysis Agent]
 
 The agent framing matters because it moves the routing logic out of your application code and into the agent's reasoning. You no longer write `if language != "en": translate()` -- you tell the agent it has a Translator tool and let it decide when to use it. This is the same compositional thinking from xref:ch04-agent-development.adoc[Chapter 4] and xref:ch05-advanced-agent-patterns.adoc[Chapter 5], now applied to text analysis.
@@ -279,8 +277,6 @@ That ceiling is exactly the problem the Voice Live API solves.
 
 The *Voice Live API* (part of Foundry Tools / Azure Speech) is a unified, low-latency *speech-to-speech* path purpose-built for voice agents. Instead of three discrete stages with their own round trips, Voice Live provides a single *WebSocket*-based streaming connection that handles listening, reasoning, and speaking as one continuous, overlapping flow. It is compatible with the *Azure OpenAI Realtime API*, so the programming model will feel familiar if you have used Realtime. This is Lab 17.
 
-// GRAPHIC TODO: voice-live-agent-loop
-// Graphic G6.8: Voice Live agent loop showing the continuous bidirectional WebSocket stream between user and agent, with overlapping listen/think/speak, interruption detection, and end-of-turn detection
 image::ch06/g6-4-voice-live-agent-loop.png[Voice Live Agent Loop]
 
 Voice Live brings several conversational capabilities that the stitched loop cannot easily match:
@@ -323,7 +319,6 @@ A complete pipeline for the law firm, from intake to a searchable record, has fo
 
 *Stage 4: Persistence and Indexing.* The structured record is written into the case-management system and indexed for natural-language search, tagged with metadata from earlier stages (practice area, client, document type, date). Attorneys -- or the Voice Live agent from Section 6.6 -- can then query it. Output: a searchable, structured record.
 
-// GRAPHIC TODO: update law-firm pipeline to generative/agent stages -- current art shows the old five-stage classification/QnA pipeline; this section now describes a four-stage generative/agent pipeline (intake, language handling, structured extraction, persistence/indexing)
 image::ch06/g6-5-generative-text-pipeline.png[Generative Text Pipeline for Law Firm]
 
 Notice what is *gone* compared to the older design: there is no separate custom-classification stage (classification is now a field the extraction prompt fills in) and no QnA-knowledge-base stage (search and Q&A are served by the indexed structured records and the Voice Live agent). The pipeline is shorter and the stages are more capable.

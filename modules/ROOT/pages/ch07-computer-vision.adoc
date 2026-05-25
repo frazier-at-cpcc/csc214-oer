@@ -232,7 +232,6 @@ The attack works like this. Piedmont Media's library tool lets users submit an i
 *Indirect prompt injection via images is a real attack, not a hypothetical.* Any system that feeds user-supplied images to a multimodal model can be manipulated by instructions hidden as text inside those images. Mitigate it with defense in depth: (1) instruct the model in the system prompt to treat *any* text found inside an image as untrusted content to describe, never as commands to follow; (2) keep the system prompt and tool permissions outside the model's reach so a successful injection cannot exfiltrate secrets or trigger privileged actions; (3) screen and, where appropriate, sanitize or flag images that contain instruction-like text; and (4) keep a human in the loop for any consequential action -- such as marking an asset "approved for publication" -- so the model alone cannot be tricked into authorizing it.
 ====
 
-// GRAPHIC TODO: indirect-prompt-injection-in-images
 image::ch07/g7-4-indirect-prompt-injection.png[Indirect Prompt Injection in Images]
 
 === 7.5.3 Visual Policy Rules: Watermarks, Prohibited Symbols, Brand Usage
@@ -272,7 +271,6 @@ The capabilities differ sharply in how they scale:
 
 For Piedmont Media, the economics are stark: describing one tricky image interactively with a multimodal model is cheap and appropriate; describing all 80,000 that way would be slow and expensive, so the back-catalog job runs through Content Understanding.
 
-// GRAPHIC TODO: vision-capability-matrix-ai103
 image::ch07/g7-5-vision-capability-matrix.png[Vision Capability Matrix]
 
 .Vision Capability Comparison Matrix
@@ -304,7 +302,6 @@ image::ch07/g7-5-vision-capability-matrix.png[Vision Capability Matrix]
 | Unsafe-content filtering, indirect-prompt-injection defense, watermark / prohibited-symbol / brand-usage checks
 |===
 
-// GRAPHIC TODO: vision-service-selection-ai103
 image::ch07/g7-6-vision-service-selection.png[Vision Capability Selection Flowchart]
 
 [NOTE]

@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="style.css">
+<style>
+.loop-node{border-radius:20px;padding:32px 36px;font-size:32px;font-weight:700;text-align:center;box-shadow:0 6px 18px rgba(15,23,42,.08);}
+.loop-arrow{font-size:48px;color:var(--muted);line-height:1;}
+.callout-tag{display:block;margin:8px 0;padding:12px 20px;border-radius:10px;font-size:26px;font-weight:600;text-align:center;}
+</style>
+</head>
+<body>
+<div id="fig">
+  <h1 class="fig-title">Voice Live Agent (speech-to-speech)</h1>
+  <p class="fig-sub">A unified real-time loop — no separate STT/TTS pipeline required</p>
+
+  <div style="position:relative;width:100%;margin-top:20px;">
+
+    <!-- Circular layout: 4 nodes in a ring -->
+    <div style="display:grid;grid-template-columns:1fr 80px 1fr;grid-template-rows:auto 80px auto;gap:0;align-items:center;justify-items:center;max-width:1800px;margin:0 auto;">
+
+      <!-- Top-left: User speaks -->
+      <div class="loop-node" style="background:#fff;border:3px solid var(--line);width:100%;max-width:560px;">
+        <div style="font-size:40px;margin-bottom:10px;">🎙️</div>
+        <div>User speaks</div>
+        <div style="font-size:26px;font-weight:400;color:var(--muted);margin-top:8px;">microphone input via WebSocket</div>
+      </div>
+
+      <!-- Top center arrow → -->
+      <div class="loop-arrow" style="justify-self:center;">→</div>
+
+      <!-- Top-right: Voice Live API -->
+      <div class="loop-node box blue" style="width:100%;max-width:560px;">
+        <div style="font-size:34px;font-weight:700;color:var(--blue);margin-bottom:12px;">Voice Live API</div>
+        <div style="font-size:28px;font-weight:400;line-height:1.5;color:var(--ink);">STT + LLM + TTS<br>low latency · WebSocket</div>
+        <div style="margin-top:14px;">
+          <span class="tag blue" style="font-size:24px;">real-time streaming</span>
+        </div>
+      </div>
+
+      <!-- Mid-left: arrow down ↓ -->
+      <div class="loop-arrow" style="grid-column:1;grid-row:2;justify-self:center;">↑</div>
+      <!-- Mid-right: arrow down ↓ -->
+      <div class="loop-arrow" style="grid-column:3;grid-row:2;justify-self:center;">↓</div>
+
+      <!-- Bottom-left: Spoken reply -->
+      <div class="loop-node" style="background:#fff;border:3px solid var(--line);width:100%;max-width:560px;grid-row:3;grid-column:1;">
+        <div style="font-size:40px;margin-bottom:10px;">🔊</div>
+        <div>Spoken reply</div>
+        <div style="font-size:26px;font-weight:400;color:var(--muted);margin-top:8px;">streamed audio to user</div>
+      </div>
+
+      <!-- Bottom center arrow ← -->
+      <div class="loop-arrow" style="grid-row:3;grid-column:2;justify-self:center;">←</div>
+
+      <!-- Bottom-right: Agent reasoning / tools -->
+      <div class="loop-node box purple" style="width:100%;max-width:560px;grid-row:3;grid-column:3;">
+        <div style="font-size:34px;font-weight:700;color:var(--purple);margin-bottom:12px;">Agent reasoning / tools</div>
+        <div style="font-size:28px;font-weight:400;line-height:1.5;color:var(--ink);">LLM decides tool calls, builds response</div>
+        <div style="margin-top:14px;">
+          <span class="tag purple" style="font-size:24px;">grounded in knowledge</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Side callouts -->
+    <div style="position:absolute;right:0;top:50%;transform:translateY(-50%);width:360px;">
+      <div style="font-size:28px;font-weight:700;color:var(--muted);margin-bottom:14px;">Optional features</div>
+      <span class="callout-tag" style="background:var(--orange-bg);color:var(--orange);border:2px solid var(--orange);">interruption detection</span>
+      <span class="callout-tag" style="background:var(--orange-bg);color:var(--orange);border:2px solid var(--orange);">end-of-turn detection</span>
+      <span class="callout-tag" style="background:var(--teal-bg);color:var(--teal);border:2px solid var(--teal);">optional avatar</span>
+    </div>
+
+  </div>
+
+  <p class="note">Unified real-time voice agent; Realtime-API compatible — Lab 17.</p>
+</div>
+</body>
+</html>

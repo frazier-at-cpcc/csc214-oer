@@ -48,7 +48,6 @@ The Agent Framework organizes development around a small set of core ideas.
 
 **Graph-based workflows.** Beyond a single agent, the framework models multi-step processes as graphs of steps -- the foundation for the orchestration patterns in Section 5.3.
 
-// GRAPHIC TODO: regenerate sdk-vs-direct-api figure to reflect the Microsoft Agent Framework
 image::ch05/g5-1-sdk-vs-direct-api.png[Framework vs. Direct API Comparison]
 
 === 5.2.3 Agent Orchestration vs. Workflow Orchestration

@@ -1,0 +1,68 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="style.css">
+<style>
+.layer{padding:22px 28px;border-radius:12px;font-size:28px;font-weight:600;text-align:center;margin-bottom:10px;}
+.dev-layer{background:#f1f5f9;border:2px dashed #94a3b8;color:#475569;}
+.sdk-layer{background:var(--blue-bg);border:2px solid var(--blue);color:var(--blue);}
+.sdk-big{padding:44px 32px;border-radius:16px;background:var(--blue-bg);border:3px solid var(--blue);color:var(--blue);font-size:30px;font-weight:600;line-height:1.7;margin-top:10px;}
+.col-header{font-size:40px;font-weight:700;text-align:center;padding:20px;border-radius:14px;margin-bottom:20px;}
+.vs-badge{font-size:36px;font-weight:800;color:var(--muted);align-self:center;padding:0 30px;flex-shrink:0;}
+</style>
+</head>
+<body>
+<div id="fig">
+  <h1 class="fig-title">Microsoft Agent Framework vs. Direct API</h1>
+  <p class="fig-sub">Both produce the same result — the framework eliminates the infrastructure plumbing</p>
+
+  <div class="row" style="align-items:flex-start;margin-bottom:40px;">
+
+    <!-- Direct API column -->
+    <div style="flex:1;">
+      <div class="col-header" style="background:#f1f5f9;color:#475569;">Direct API</div>
+      <div style="font-size:26px;color:var(--muted);text-align:center;margin-bottom:20px;">Developer writes all of this:</div>
+      <div class="col" style="gap:8px;">
+        <div class="layer dev-layer">Message formatting</div>
+        <div class="layer dev-layer">Tool registration</div>
+        <div class="layer dev-layer">Execution loop</div>
+        <div class="layer dev-layer">Tool-call parsing</div>
+        <div class="layer dev-layer">Retry logic</div>
+        <div class="layer dev-layer">History / state management</div>
+        <div class="layer dev-layer">Response assembly</div>
+      </div>
+      <div style="text-align:center;margin-top:28px;font-size:28px;color:#94a3b8;font-style:italic;">~200–400 lines of boilerplate</div>
+    </div>
+
+    <!-- VS badge -->
+    <div class="vs-badge">vs.</div>
+
+    <!-- Framework column -->
+    <div style="flex:1;">
+      <div class="col-header" style="background:var(--blue-bg);color:var(--blue);">Microsoft Agent Framework</div>
+      <div style="font-size:26px;color:var(--muted);text-align:center;margin-bottom:20px;">Developer writes only this:</div>
+      <div class="col" style="gap:8px;">
+        <div class="layer sdk-layer">Agent config (instructions, tools)</div>
+        <div class="layer sdk-layer">Tool implementations</div>
+      </div>
+      <div class="sdk-big">
+        SDK handles:<br>
+        loop · retries · state<br>
+        middleware · telemetry<br>
+        orchestration
+      </div>
+      <div style="text-align:center;margin-top:16px;font-size:26px;color:var(--muted);font-style:italic;">Semantic Kernel + AutoGen (Python / .NET)</div>
+    </div>
+
+  </div>
+
+  <!-- Result badge -->
+  <div style="text-align:center;margin-bottom:20px;">
+    <span class="tag green" style="font-size:32px;padding:16px 40px;">Same result, less code.</span>
+  </div>
+
+  <p class="note">Agent Framework unifies Semantic Kernel + AutoGen (Python/.NET) — Lab 10.</p>
+</div>
+</body>
+</html>

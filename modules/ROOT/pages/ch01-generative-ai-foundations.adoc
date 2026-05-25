@@ -349,7 +349,6 @@ The Microsoft Foundry portal lets you compare candidate models directly. Startin
 
 Benchmark scores published on model cards are useful but limited. A model that tops a general reasoning leaderboard may still underperform on your domain -- summarizing insurance claims, answering questions about your product catalog, or extracting fields from your invoices. That is why catalog comparison is a starting point, not a final answer.
 
-// GRAPHIC TODO: model-comparison-evaluation-view
 image::ch01/g1-6-model-evaluation.png[Model Comparison and Evaluation View]
 
 === Running an Evaluation

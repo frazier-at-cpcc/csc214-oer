@@ -185,7 +185,6 @@ This section covers three pillars of responsible AI as they apply to a grounded 
 * **Evaluators and safety evaluations** (section 2.4.8) -- measuring groundedness and safety so quality is a number you can track, not a hunch.
 * **Auditing: trace logging and provenance** (section 2.4.9) -- recording what the system retrieved, generated, and filtered so decisions can be reviewed and defended.
 
-// GRAPHIC TODO: responsible-ai-governance-layers
 image::ch02/g2-6-responsible-ai-layers.png[Responsible AI Governance Layers]
 
 === 2.4.1 Why Content Safety Matters in Production AI Systems

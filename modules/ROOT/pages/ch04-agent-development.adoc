@@ -303,7 +303,6 @@ This matters enormously in the insurance scenario. A claims adjuster handling co
 
 The feature that most distinguishes Foundry IQ from a classic RAG pipeline is *agentic retrieval*: Foundry IQ treats retrieval itself as a reasoning task rather than a single similarity lookup.
 
-// GRAPHIC TODO: foundry-iq-agentic-retrieval
 image::ch04/g4-3-foundry-iq-agentic-retrieval.png[Foundry IQ Agentic Retrieval]
 
 When the agent sends a question to the knowledge base, Foundry IQ does the following:
