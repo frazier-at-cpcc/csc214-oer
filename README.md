@@ -1,4 +1,4 @@
-# Applied Azure AI: Building Intelligent Solutions with Azure AI Services
+# Applied Azure AI: Building Intelligent Solutions with Foundry Tools
 
 An open educational resource (OER) textbook for **CSC 214 — Artificial Intelligence II** at Central Piedmont Community College.
 
@@ -6,18 +6,18 @@ An open educational resource (OER) textbook for **CSC 214 — Artificial Intelli
 
 ## About This Textbook
 
-This textbook supports an 8-week course aligned to the Microsoft AI-102 certification blueprint. Each chapter maps 1:1 to a course week and covers Azure AI services through practical, scenario-driven instruction.
+This textbook supports an 8-week course aligned to the Microsoft **AI-103: Azure AI App and Agent Developer Associate** certification. Each chapter maps 1:1 to a course week and covers Azure AI development through practical, scenario-driven instruction — from foundational model deployment through multi-agent orchestration, specialized AI services, and a multimodal capstone project.
 
-| Chapter | Topic | Azure Services |
+| Chapter | Topic | Key Services |
 |---|---|---|
-| 1 | Generative AI Foundations | Azure AI Foundry, Model Catalog |
-| 2 | RAG & Content Safety | RAG Pipelines, Content Safety Filters |
-| 3 | Model Evaluation & Introduction to Agents | Evaluation Metrics, Agent Concepts |
-| 4 | AI Agent Development | Tool Calling, Multi-Agent Orchestration |
-| 5 | Advanced Agent Patterns & Frameworks | MCP, Agent Framework SDK |
-| 6 | Natural Language Processing & Speech | AI Language, Speech Services |
-| 7 | Computer Vision & Image Generation | AI Vision, Custom Vision, DALL-E |
-| 8 | Document Intelligence & Knowledge Mining | Document Intelligence, AI Search |
+| 1. Foundations: Models, Deployment & Evaluation | Model catalog, deployment, chat completion, evaluation, secure project setup | Microsoft Foundry, model catalog |
+| 2. Grounding with RAG & Responsible AI | RAG/grounding on your own data, content safety, responsible-AI governance | RAG, content filters |
+| 3. Building AI Agents: Tools & Functions | Agent loop, building agents in portal + VS Code, custom function tools | Foundry Agent Service |
+| 4. Agent Knowledge & Protocols: MCP & Foundry IQ | Model Context Protocol tools, agentic retrieval knowledge bases | MCP, Foundry IQ |
+| 5. Agent Frameworks & Multi-Agent Orchestration | Microsoft Agent Framework, multi-agent orchestration patterns, capstone scoping | Microsoft Agent Framework |
+| 6. Text Analysis & Conversational Speech Agents | Generative text analysis, text-analysis agent, speech, real-time voice agents | Foundry Tools, Speech, Voice Live |
+| 7. Vision: Multimodal Understanding & Image Generation | Vision chat, image/video generation & editing, multimodal understanding | Content Understanding, image generation |
+| 8. Multimodal Information Extraction & Capstone | Content Understanding extraction pipelines, multimodal RAG, capstone | Content Understanding |
 
 ## Format
 

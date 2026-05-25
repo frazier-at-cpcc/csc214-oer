@@ -272,7 +272,7 @@ client = AzureOpenAI(
 )
 
 # Send a chat completion request
-# Content filters are configured at the deployment level in Azure AI Foundry.
+# Content filters are configured at the deployment level in Microsoft Foundry.
 # The API response includes content filter results for each category.
 response = client.chat.completions.create(
     model="gpt-4o",  # <1>
@@ -321,12 +321,12 @@ if prompt_filter:
                 print(f"{category}: severity={cat_result.severity}, "
                       f"filtered={cat_result.filtered}")
 ----
-<1> Use the deployment name that matches your Azure AI Foundry deployment with content filters configured.
+<1> Use the deployment name that matches your Microsoft Foundry deployment with content filters configured.
 <2> Content filter results are returned with every API response, showing how each category was evaluated.
 <3> The `filtered` field indicates whether the content was blocked; `severity` shows the detected severity level.
 <4> Prompt filter results show whether the _input_ triggered any content safety filters.
 
-Content filter thresholds are configured at the deployment level through the Azure AI Foundry portal or the Azure Management API. When you create or update a deployment, you specify the severity threshold for each harm category. The chat completion API then applies those thresholds automatically to every request and response.
+Content filter thresholds are configured at the deployment level through the Microsoft Foundry portal or the Azure Management API. When you create or update a deployment, you specify the severity threshold for each harm category. The chat completion API then applies those thresholds automatically to every request and response.
 
 == 2.5 Putting It Together: RAG with Content Safety
 

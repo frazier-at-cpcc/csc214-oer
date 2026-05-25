@@ -4,7 +4,7 @@
 
 By the end of this chapter, you will be able to:
 
-. Compare deployment options (serverless vs. provisioned) for language models in Azure AI Foundry based on cost, latency, and capability factors.
+. Compare deployment options (serverless vs. provisioned) for language models in Microsoft Foundry based on cost, latency, and capability factors.
 . Configure a chat completion API call with appropriate parameters (temperature, max tokens, system message).
 . Explain how model selection decisions affect application performance and cost.
 
@@ -14,11 +14,11 @@ Imagine you are the lead developer at a growing startup called HelpDesk Hero. Yo
 
 You sit down with your team and realize that the technical decisions ahead of you are not about whether to use a language model, but _how_ to use one. Which model should you choose from the dozens available? Should you pay per token as requests come in, or reserve dedicated capacity up front? What parameters should you set to get responses that are accurate without being robotic? These are not abstract questions -- they determine whether your chatbot delights customers or frustrates them, whether your cloud bill is manageable or alarming, and whether your application can scale as the business grows.
 
-This chapter equips you with the foundational knowledge to make these decisions confidently. You will learn about the Azure AI Foundry platform and its model catalog, understand the differences between serverless and provisioned deployment options, configure chat completion API calls with parameters that shape model behavior, and reason about how model selection affects performance, cost, and user experience downstream.
+This chapter equips you with the foundational knowledge to make these decisions confidently. You will learn about the Microsoft Foundry platform and its model catalog, understand the differences between serverless and provisioned deployment options, configure chat completion API calls with parameters that shape model behavior, and reason about how model selection affects performance, cost, and user experience downstream.
 
 Here is the roadmap for the chapter:
 
-* **Section 1.2** introduces the Azure AI Foundry platform and its core capabilities.
+* **Section 1.2** introduces the Microsoft Foundry platform and its core capabilities.
 * **Section 1.3** compares deployment options -- serverless and provisioned -- so you can match deployment strategy to application requirements.
 * **Section 1.4** walks through the anatomy of a chat completion API call, including the parameters that control model behavior.
 * **Section 1.5** examines how your choice of model ripples through every aspect of application performance and cost.
@@ -26,36 +26,36 @@ Here is the roadmap for the chapter:
 
 By the end, you will have a clear framework for approaching the deployment and configuration decisions that every generative AI project demands.
 
-== 1.2 The Azure AI Foundry Platform
+== 1.2 The Microsoft Foundry Platform
 
-Azure AI Foundry is Microsoft's unified platform for discovering, deploying, and managing AI models. It brings together model selection, deployment configuration, monitoring, and responsible AI tooling into a single environment. Whether you are experimenting with a prototype or running a production workload, Azure AI Foundry provides the infrastructure and interfaces you need.
+Microsoft Foundry is Microsoft's unified platform for discovering, deploying, and managing AI models. It brings together model selection, deployment configuration, monitoring, and responsible AI tooling into a single environment. Whether you are experimenting with a prototype or running a production workload, Microsoft Foundry provides the infrastructure and interfaces you need.
 
-=== What Azure AI Foundry Provides
+=== What Microsoft Foundry Provides
 
-Azure AI Foundry offers three core capabilities that you will use throughout this course:
+Microsoft Foundry offers three core capabilities that you will use throughout this course:
 
 **Model Catalog.** The model catalog is a searchable directory of language models from multiple providers, including OpenAI, Meta, Mistral, and Microsoft. Each model in the catalog has a **model card** -- a summary page that describes the model's capabilities, supported tasks, pricing, context window size, and regional availability. The model catalog is your starting point for any deployment decision, because it lets you compare models side by side before committing resources.
 
-**Deployment Management.** Once you select a model, Azure AI Foundry provides the tools to deploy it as an API endpoint. You can choose between deployment options (which we cover in detail in Section 1.3), configure scaling settings, and manage endpoint lifecycle -- all from the portal or programmatically through the Azure SDK. Each deployment produces an **API endpoint** -- a URL that your application calls to send prompts and receive completions.
+**Deployment Management.** Once you select a model, Microsoft Foundry provides the tools to deploy it as an API endpoint. You can choose between deployment options (which we cover in detail in Section 1.3), configure scaling settings, and manage endpoint lifecycle -- all from the portal or programmatically through the Azure SDK. Each deployment produces an **API endpoint** -- a URL that your application calls to send prompts and receive completions.
 
-**Monitoring and Responsible AI.** After deployment, Azure AI Foundry provides dashboards for tracking usage, latency, error rates, and token consumption. It also integrates content safety tools, which you will explore in depth in xref:ch02-rag-and-content-safety.adoc[Chapter 2].
+**Monitoring and Responsible AI.** After deployment, Microsoft Foundry provides dashboards for tracking usage, latency, error rates, and token consumption. It also integrates content safety tools, which you will explore in depth in xref:ch02-rag-and-content-safety.adoc[Chapter 2].
 
 === Navigating the Foundry Portal
 
-When you first open the Azure AI Foundry portal, you will see a project-based workspace. Each project groups related deployments, datasets, and evaluation runs. Within a project, the left navigation panel gives you access to the model catalog, your active deployments, a playground for interactive testing, and evaluation tools.
+When you first open the Microsoft Foundry portal, you will see a project-based workspace. Each project groups related deployments, datasets, and evaluation runs. Within a project, the left navigation panel gives you access to the model catalog, your active deployments, a playground for interactive testing, and evaluation tools.
 
 The playground is particularly useful during development. It lets you send prompts to a deployed model, adjust parameters in real time, and observe how changes affect output -- all without writing code. You will use the playground extensively in Lab 01 to verify that your deployment is working before you build an application on top of it in Lab 02.
 
-image::ch01/g1-1-foundry-platform-overview.png[Azure AI Foundry Platform Overview]
+image::ch01/g1-1-foundry-platform-overview.png[Microsoft Foundry Platform Overview]
 
 [NOTE]
 ====
-You may encounter references to "Azure OpenAI Service" in older documentation and tutorials. Microsoft has rebranded and consolidated this service under the Azure AI Foundry umbrella. The underlying capabilities are the same, but the portal experience, project structure, and some API endpoints have been updated. If a tutorial references the Azure OpenAI Studio, you can follow along using the Azure AI Foundry portal -- the workflows are equivalent.
+*Platform rename notice:* Microsoft Foundry was formerly called "Azure AI Foundry," and Foundry Tools were formerly called "Azure AI Services." Older documentation, tutorials, and certification study materials may still use those earlier names. Similarly, if a tutorial references the "Azure OpenAI Studio" portal, you can follow the same workflow in the Microsoft Foundry portal -- the underlying capabilities are equivalent. When you encounter the old names in external resources, substitute the current names and continue; the steps are the same.
 ====
 
 == 1.3 Deployment Options for Language Models
 
-Once you have selected a model from the catalog, your next decision is how to deploy it. Azure AI Foundry offers two primary deployment options: serverless and provisioned. Each option represents a different set of tradeoffs among cost, latency, scalability, and management overhead. Understanding these tradeoffs is essential for making a deployment choice that fits your application's requirements.
+Once you have selected a model from the catalog, your next decision is how to deploy it. Microsoft Foundry offers two primary deployment options: serverless and provisioned. Each option represents a different set of tradeoffs among cost, latency, scalability, and management overhead. Understanding these tradeoffs is essential for making a deployment choice that fits your application's requirements.
 
 === Serverless Deployment
 
@@ -122,7 +122,7 @@ To estimate your token costs for a serverless deployment, count the average numb
 
 [IMPORTANT]
 ====
-Not all models are available in all Azure regions, and not all models support both deployment options. Before committing to a model and deployment strategy, check the model card in the Azure AI Foundry catalog for regional availability and supported deployment types. Choosing a model that is not available in your target region will block your deployment.
+Not all models are available in all Azure regions, and not all models support both deployment options. Before committing to a model and deployment strategy, check the model card in the Microsoft Foundry catalog for regional availability and supported deployment types. Choosing a model that is not available in your target region will block your deployment.
 ====
 
 == 1.4 Configuring Chat Completion API Calls
@@ -220,7 +220,7 @@ response = client.chat.completions.create(
 # Extract and print the model's response
 print(response.choices[0].message.content)
 ----
-<1> The endpoint URL from your Azure AI Foundry deployment.
+<1> The endpoint URL from your Microsoft Foundry deployment.
 <2> The deployment name, which corresponds to the model you deployed.
 <3> The system message defines the assistant's role and behavioral constraints.
 <4> The user message contains the customer's inquiry.
@@ -235,7 +235,7 @@ Choosing a model is not just a technical checkbox -- it is a decision that casca
 
 === Model Families and Capability Tiers
 
-The Azure AI Foundry model catalog organizes models into families and capability tiers. At a high level, you will encounter:
+The Microsoft Foundry model catalog organizes models into families and capability tiers. At a high level, you will encounter:
 
 * **Large, highly capable models** (such as GPT-4o and GPT-4.1) that excel at complex reasoning, nuanced language understanding, and multi-step tasks. These models are the most expensive per token and have the highest latency, but they deliver the best output quality for demanding tasks.
 * **Smaller, efficient models** (such as GPT-4o mini and GPT-4.1 mini) that offer good performance at a fraction of the cost. These models are faster and cheaper, making them suitable for high-volume, straightforward tasks like classification, summarization, or simple Q&A.
@@ -281,7 +281,7 @@ The concepts in this chapter come to life in two hands-on lab activities. Here i
 
 === Lab 01: Choose and Deploy a Language Model
 
-In Lab 01, you will navigate the Azure AI Foundry model catalog and deploy a language model. As you work through the lab, pay attention to the following:
+In Lab 01, you will navigate the Microsoft Foundry model catalog and deploy a language model. As you work through the lab, pay attention to the following:
 
 * **Model card details.** When you evaluate models in the catalog, notice the information on each model card: capabilities, pricing, context window size, and regional availability. These are the factors you will use to compare deployment options in the discussion post.
 * **Deployment type selection.** You will deploy using a serverless endpoint. Observe how quickly the deployment becomes available and consider how this experience would differ with a provisioned deployment.
@@ -335,7 +335,7 @@ frequency_penalty:: A parameter (-2.0 to 2.0) that penalizes the model for reusi
 
 context window:: The maximum number of tokens a model can process in a single request, including both input and output. Determines how much conversation history or document content the model can consider.
 
-model catalog:: A searchable directory within Azure AI Foundry that lists available language models from multiple providers, with model cards showing capabilities, pricing, and regional availability.
+model catalog:: A searchable directory within Microsoft Foundry that lists available language models from multiple providers, with model cards showing capabilities, pricing, and regional availability.
 
 latency:: The time elapsed between sending a request to a model endpoint and receiving the response. Affected by model size, deployment type, network conditions, and request complexity.
 
@@ -345,7 +345,7 @@ API endpoint:: A URL that serves as the access point for your deployed model. Yo
 
 == 1.9 Chapter Summary
 
-This chapter established the foundational concepts you need to deploy and configure language models in Azure AI Foundry. You learned that the Azure AI Foundry platform provides a model catalog for discovery, deployment tools for getting models into production, and monitoring capabilities for tracking performance. You examined two deployment options -- serverless (pay-per-token, auto-scaling, variable latency) and provisioned (reserved throughput units, predictable latency, fixed cost) -- and developed a framework for choosing between them based on traffic patterns, latency requirements, and budget models.
+This chapter established the foundational concepts you need to deploy and configure language models in Microsoft Foundry. You learned that the Microsoft Foundry platform provides a model catalog for discovery, deployment tools for getting models into production, and monitoring capabilities for tracking performance. You examined two deployment options -- serverless (pay-per-token, auto-scaling, variable latency) and provisioned (reserved throughput units, predictable latency, fixed cost) -- and developed a framework for choosing between them based on traffic patterns, latency requirements, and budget models.
 
 You explored the chat completion API in detail, learning how system messages, user messages, and assistant messages form a structured conversation, and how parameters like temperature, max_tokens, top_p, and frequency_penalty shape the model's output. Finally, you considered how model selection decisions -- the choice of model family, capability tier, and context window size -- ripple through application performance, cost, and user experience.
 

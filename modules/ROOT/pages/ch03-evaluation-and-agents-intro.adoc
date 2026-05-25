@@ -22,7 +22,7 @@ This chapter introduces the tools you need to move beyond subjective evaluation.
 
 == 3.2 Standard Evaluation Metrics for Generative AI
 
-When you evaluate a generative AI model's output, you need a shared vocabulary that breaks "good" and "bad" into specific, measurable dimensions. Azure AI Foundry provides four standard metrics for evaluating text generation quality: **groundedness**, **relevance**, **coherence**, and **fluency**. Each metric captures a different aspect of response quality, and together they provide a comprehensive picture of how well your model is performing.
+When you evaluate a generative AI model's output, you need a shared vocabulary that breaks "good" and "bad" into specific, measurable dimensions. Microsoft Foundry provides four standard metrics for evaluating text generation quality: **groundedness**, **relevance**, **coherence**, and **fluency**. Each metric captures a different aspect of response quality, and together they provide a comprehensive picture of how well your model is performing.
 
 // Graphic G3.1: Evaluation metrics scorecard showing the four metrics with sample scores
 image::ch03/g3-1-evaluation-scorecard.png[Evaluation Metrics Scorecard]

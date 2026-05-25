@@ -428,7 +428,7 @@ Skillsets are defined as JSON configurations attached to an indexer. When the in
 
 === 8.5.3 Built-In Skills: Entity Recognition, Key Phrase Extraction, Language Detection, Sentiment, OCR, Image Analysis
 
-Azure AI Search includes a library of **built-in skills** that wrap Azure AI services into the skillset framework:
+Azure AI Search includes a library of **built-in skills** that wrap Foundry Tools into the skillset framework:
 
 * **Entity recognition** -- identifies named entities (people, organizations, locations, quantities, dates) in text. This is the same NER capability you studied in xref:ch06-nlp-and-speech.adoc[Chapter 6], packaged as a pipeline skill.
 * **Key phrase extraction** -- extracts the main topics and concepts from text.
@@ -490,11 +490,11 @@ Only include skills that produce fields you will actually search or analyze. Eac
 
 == 8.6 Putting It All Together: Multi-Service Solution Architecture
 
-You have now studied Azure AI services across eight chapters: generative AI models, retrieval-augmented generation, content safety, model evaluation, agent development, natural language processing, speech, computer vision, document intelligence, and search. This section steps back to survey the full landscape and discuss how to combine these services into coherent, well-justified solution architectures.
+You have now studied Foundry Tools across eight chapters: generative AI models, retrieval-augmented generation, content safety, model evaluation, agent development, natural language processing, speech, computer vision, document intelligence, and search. This section steps back to survey the full landscape and discuss how to combine these services into coherent, well-justified solution architectures.
 
-=== 8.6.1 Revisiting the Azure AI Services Landscape with Eight Chapters of Context
+=== 8.6.1 Revisiting the Foundry Tools Landscape with Eight Chapters of Context
 
-In xref:ch05-advanced-agent-patterns.adoc[Chapter 5], you encountered the Azure AI services catalog and learned to categorize services by capability. Now, with eight chapters of hands-on experience, you can evaluate those services with genuine understanding rather than surface-level familiarity.
+In xref:ch05-advanced-agent-patterns.adoc[Chapter 5], you encountered the Foundry Tools catalog and learned to categorize services by capability. Now, with eight chapters of hands-on experience, you can evaluate those services with genuine understanding rather than surface-level familiarity.
 
 You know that Azure OpenAI Service provides flexible generative capabilities but at higher per-token costs and variable latency. You know that dedicated services like Azure AI Language, Azure AI Vision, and Document Intelligence provide optimized, lower-cost processing for specific tasks. You know that Azure AI Search provides the retrieval layer that connects stored knowledge to generative models. And you know that agents orchestrate these services into workflows that accomplish complex goals.
 
@@ -532,7 +532,7 @@ Every architecture decision involves tradeoffs. The four most common tradeoff ca
 In professional practice and in this course's capstone project, stating _what_ services you chose is insufficient. You must explain _why_ you chose them. A strong design justification follows a four-part structure:
 
 1. **Problem** -- What specific capability does the solution need?
-2. **Options** -- What Azure AI services could provide that capability?
+2. **Options** -- What Foundry Tools could provide that capability?
 3. **Choice** -- Which service did you select?
 4. **Reasoning** -- Why is this service the best fit, and why are the alternatives less suitable?
 
@@ -573,7 +573,7 @@ Your technical design document must include the following components:
 
 1. **Executive Summary** -- A one-paragraph overview of the problem and solution for a non-technical audience.
 2. **Problem Statement** -- A clear description of the business problem, including who is affected, what the current process looks like, and why AI is appropriate.
-3. **Solution Architecture** -- A diagram and narrative description of the overall system design, showing all Azure AI services and how they connect.
+3. **Solution Architecture** -- A diagram and narrative description of the overall system design, showing all Foundry Tools and how they connect.
 4. **Service Selection Justification** -- For each Azure AI service in your architecture, a problem-options-choice-reasoning justification (Section 8.6.4).
 5. **Design Tradeoffs** -- An explicit discussion of at least three tradeoffs you navigated, explaining what you gained and what you sacrificed with each decision.
 6. **Responsible AI Considerations** -- An analysis of fairness, transparency, privacy, reliability, and safety concerns specific to your solution, with mitigation strategies.
@@ -589,7 +589,7 @@ The strongest design documents demonstrate a clear decision-making process for e
 
 **Problem.** State the specific capability need. Be concrete: "The system must extract vendor names, invoice numbers, and line item details from PDF invoices submitted by 47 different suppliers."
 
-**Options.** List the viable Azure AI services. Be honest about alternatives: "Document Intelligence prebuilt invoice model, Document Intelligence Layout model with custom parsing, or Azure OpenAI with a structured output prompt."
+**Options.** List the viable Foundry Tools. Be honest about alternatives: "Document Intelligence prebuilt invoice model, Document Intelligence Layout model with custom parsing, or Azure OpenAI with a structured output prompt."
 
 **Choice.** State your selection: "We selected the Document Intelligence prebuilt invoice model."
 
@@ -695,9 +695,9 @@ Take a moment to appreciate how far you have come. In xref:ch01-generative-ai-fo
 
 You started by calling a single API. You are now designing multi-service architectures that combine generative models, dedicated AI services, search infrastructure, and responsible AI guardrails into coherent solutions. That progression -- from consumer of a single service to architect of integrated systems -- is the core learning journey of this course.
 
-=== AI-102 Certification Connection
+=== AI-103 Certification Connection
 
-The concepts and services covered in this course align closely with the Microsoft AI-102: Designing and Implementing a Microsoft Azure AI Solution certification exam. The exam tests your ability to plan and manage Azure AI solutions, implement content generation and document intelligence solutions, implement knowledge mining solutions, and implement computer vision and NLP solutions. If you have engaged deeply with the chapters, labs, and assessments in this course, you have built a strong foundation for the certification. Consider pursuing it as a professional credential that validates the skills you have developed.
+The concepts and services covered in this course align closely with the Microsoft AI-103: Azure AI App and Agent Developer Associate certification exam. The exam tests your ability to design and implement AI applications and agents on Azure -- including generative AI solutions, agentic systems, document intelligence pipelines, and multi-service integrations. If you have engaged deeply with the chapters, labs, and assessments in this course, you have built a strong foundation for the certification. Consider pursuing it as a professional credential that validates the skills you have developed.
 
 === Moving Forward
 

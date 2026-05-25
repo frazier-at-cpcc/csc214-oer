@@ -11,7 +11,7 @@ By the end of this chapter, you will be able to:
 
 == 7.1 Introduction: Teaching Machines to See
 
-In xref:ch06-nlp-and-speech.adoc[Chapter 6], you learned how Azure AI services extract structured information from unstructured text and speech. You applied pre-built analytics, built custom classification models, and composed multi-service pipelines. This chapter applies the same architectural thinking to a different kind of unstructured data: images.
+In xref:ch06-nlp-and-speech.adoc[Chapter 6], you learned how Foundry Tools extract structured information from unstructured text and speech. You applied pre-built analytics, built custom classification models, and composed multi-service pipelines. This chapter applies the same architectural thinking to a different kind of unstructured data: images.
 
 Consider this scenario. A wildlife conservation organization -- the Piedmont Wildlife Trust -- manages a network of 200 trail cameras deployed across protected habitats in the Carolina Piedmont region. Every week, these cameras capture roughly 50,000 images. Some images show white-tailed deer, black bears, coyotes, or red foxes. Others show birds, reptiles, or the occasional domestic animal that has wandered into the preserve. Many images show nothing but waving grass or swaying branches triggered by motion sensors. Each image needs to be reviewed, the species identified, and the sighting logged in the Trust's biodiversity database.
 
@@ -356,7 +356,7 @@ Face detection tells you that a face exists in an image. **Face identification**
 
 Azure's Face service technically supports identification and verification, but Microsoft gates access to these features behind an approval process. You cannot simply provision a Face resource and start identifying people. You must submit an application explaining your use case, and Microsoft reviews it against their Responsible AI principles before granting access.
 
-This chapter covers face detection only. Identification and verification are out of scope for both this chapter and the AI-102 exam at the detection-only level.
+This chapter covers face detection only. Identification and verification are out of scope for both this chapter and the AI-103 exam at the detection-only level.
 
 === 7.5.4 Responsible AI Considerations
 
@@ -368,7 +368,7 @@ Microsoft has taken a deliberate stance on these issues:
 * Microsoft retired facial analysis features that attempted to infer emotional states, recognizing that these inferences are unreliable and potentially harmful.
 * The gated access model for identification and verification forces organizations to articulate their use case and consider its ethical implications before deploying.
 
-As a developer using Azure AI services, you share responsibility for ethical deployment. Building a visitor counter for a nature preserve is a low-risk application. Building a surveillance system that tracks individuals across a network of cameras is a high-risk application that requires careful ethical review -- even if you obtain Microsoft's approval.
+As a developer using Foundry Tools, you share responsibility for ethical deployment. Building a visitor counter for a nature preserve is a low-risk application. Building a surveillance system that tracks individuals across a network of cameras is a high-risk application that requires careful ethical review -- even if you obtain Microsoft's approval.
 
 === 7.5.5 Microsoft's Requirements for Face-Related Capabilities
 
@@ -440,7 +440,7 @@ Use vision-enabled chat for flexible, conversational analysis where questions va
 
 == 7.7 Comparing Vision Services: A Decision Framework
 
-You have now learned about five distinct vision-related capabilities: Image Analysis, OCR/Read API, Custom Vision, Face Detection, and vision-enabled generative AI (including image generation). Each service has strengths, limitations, and ideal use cases. Choosing the right service for a given task is a critical skill -- and one that the AI-102 exam tests directly.
+You have now learned about five distinct vision-related capabilities: Image Analysis, OCR/Read API, Custom Vision, Face Detection, and vision-enabled generative AI (including image generation). Each service has strengths, limitations, and ideal use cases. Choosing the right service for a given task is a critical skill -- and one that the AI-103 exam tests directly.
 
 === 7.7.1 Mapping Tasks to Services
 
@@ -640,7 +640,7 @@ DALL-E:: An Azure OpenAI model that generates images from text descriptions, cre
 
 == 7.11 Chapter Summary
 
-This chapter introduced the Azure AI services that extract information from images and generate visual content. You began with Image Analysis -- tagging, object detection, caption generation, and smart cropping -- and learned how these pre-built capabilities handle general-purpose visual understanding tasks. The Read API extended your toolkit to text extraction, recognizing both printed and handwritten text in images with awareness of document layout and multi-language support.
+This chapter introduced the Foundry Tools that extract information from images and generate visual content. You began with Image Analysis -- tagging, object detection, caption generation, and smart cropping -- and learned how these pre-built capabilities handle general-purpose visual understanding tasks. The Read API extended your toolkit to text extraction, recognizing both printed and handwritten text in images with awareness of document layout and multi-language support.
 
 Custom Vision showed you how to move beyond pre-built capabilities when your domain requires fine-grained distinctions that general models cannot make. You learned the training cycle -- upload, tag, train, evaluate, iterate -- and the evaluation metrics that guide each iteration. Face detection introduced both the technical capability of locating faces in images and the ethical considerations that surround face-related technologies, including Microsoft's gated access model for identification and verification.
 

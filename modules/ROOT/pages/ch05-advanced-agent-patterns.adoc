@@ -5,7 +5,7 @@
 By the end of this chapter, you will be able to:
 
 . Configure an AI agent to connect to a remote MCP server for external tool access.
-. Compare the Microsoft Agent Framework SDK approach to direct Azure AI Foundry agent APIs.
+. Compare the Microsoft Agent Framework SDK approach to direct Microsoft Foundry agent APIs.
 . Propose an Azure AI solution for a real-world problem, identifying target users, problem domain, and candidate services.
 
 == 5.1 Introduction: Extending Agents Beyond the Sandbox
@@ -175,7 +175,7 @@ MCP connections cross trust boundaries, and security must be addressed at multip
 
 [NOTE]
 ====
-MCP is an open standard -- the same server can be used by different agent frameworks. An MCP server you build for an Azure AI Foundry agent works equally well with agents built using LangChain, Semantic Kernel, or any other framework that supports the MCP client protocol. This interoperability is one of the protocol's key design goals.
+MCP is an open standard -- the same server can be used by different agent frameworks. An MCP server you build for an Microsoft Foundry agent works equally well with agents built using LangChain, Semantic Kernel, or any other framework that supports the MCP client protocol. This interoperability is one of the protocol's key design goals.
 ====
 
 Here is a minimal example of an MCP server that registers a tool and an agent that discovers and calls it:
@@ -250,11 +250,11 @@ This example demonstrates the full lifecycle: the server registers a tool with a
 
 == 5.3 Configuring an Agent with Remote MCP Servers
 
-=== 5.3.1 Connecting to a Remote MCP Server from Azure AI Foundry
+=== 5.3.1 Connecting to a Remote MCP Server from Microsoft Foundry
 
-Azure AI Foundry supports MCP as a tool connection method for agents. When you create an agent in Azure AI Foundry, you can register remote MCP servers alongside locally defined tools. The agent treats both kinds of tools uniformly -- it discovers them, sees their schemas, and calls them using the same reasoning-action loop you learned in xref:ch04-agent-development.adoc[Chapter 4].
+Microsoft Foundry supports MCP as a tool connection method for agents. When you create an agent in Microsoft Foundry, you can register remote MCP servers alongside locally defined tools. The agent treats both kinds of tools uniformly -- it discovers them, sees their schemas, and calls them using the same reasoning-action loop you learned in xref:ch04-agent-development.adoc[Chapter 4].
 
-To connect an Azure AI Foundry agent to a remote MCP server, you provide the server's endpoint URL and authentication credentials as part of the agent's tool configuration. Here is how this looks using the Azure AI Projects SDK:
+To connect an Microsoft Foundry agent to a remote MCP server, you provide the server's endpoint URL and authentication credentials as part of the agent's tool configuration. Here is how this looks using the Azure AI Projects SDK:
 
 [source,python]
 ----
@@ -342,7 +342,7 @@ Remote tools cross trust boundaries -- validate all tool outputs before acting o
 
 In xref:ch04-agent-development.adoc[Chapter 4], you built an agent by writing the reasoning-action loop yourself. You manually managed the conversation history, parsed tool call responses, dispatched to handler functions, appended results back to the message list, and called the model again. That manual approach teaches you how agents work at a fundamental level, but it also means you are responsible for every detail: retry logic, error handling, message formatting, token management, and execution flow control.
 
-The **Microsoft Agent Framework SDK** (part of the Azure AI Foundry ecosystem) provides higher-level abstractions that handle these operational details for you. Instead of writing the execution loop, you declare your agent's tools and behavior, and the SDK manages the rest. Think of it as the difference between writing raw HTTP requests and using a web framework -- the underlying mechanics are the same, but the framework handles the boilerplate.
+The **Microsoft Agent Framework SDK** (part of the Microsoft Foundry ecosystem) provides higher-level abstractions that handle these operational details for you. Instead of writing the execution loop, you declare your agent's tools and behavior, and the SDK manages the rest. Think of it as the difference between writing raw HTTP requests and using a web framework -- the underlying mechanics are the same, but the framework handles the boilerplate.
 
 === 5.4.2 SDK Architecture: Agents, Tools, Memory, and Orchestration
 
@@ -482,14 +482,14 @@ When choosing between the SDK and direct API for production, consider these fact
 
 == 5.6 Designing Azure AI Solutions: From Concept to Proposal
 
-=== 5.6.1 The Azure AI Services Landscape
+=== 5.6.1 The Foundry Tools Landscape
 
-Throughout this textbook, you have been working primarily with Azure OpenAI Service and Azure AI Foundry for generative AI and agent development. But Azure's AI capabilities extend far beyond generative models. The Azure AI platform includes a broad set of specialized services, each designed for a specific class of AI problem.
+Throughout this textbook, you have been working primarily with Azure OpenAI Service and Microsoft Foundry for generative AI and agent development. But Azure's AI capabilities extend far beyond generative models. The Azure AI platform includes a broad set of specialized services, each designed for a specific class of AI problem.
 
-// Graphic G5.4: Azure AI services landscape map showing the major service categories and their relationships
-image::ch05/g5-4-azure-ai-services-landscape.png[Azure AI Services Landscape Map]
+// Graphic G5.4: Foundry Tools landscape map showing the major service categories and their relationships
+image::ch05/g5-4-azure-ai-services-landscape.png[Foundry Tools Landscape Map]
 
-**Azure OpenAI Service** provides access to large language models for text generation, summarization, translation, and code generation. **Azure AI Foundry** provides the platform for building and deploying AI agents, managing model deployments, and integrating tools. **Azure AI Language** offers pre-built NLP capabilities including sentiment analysis, key phrase extraction, named entity recognition, and text summarization. **Azure AI Speech** provides speech-to-text, text-to-speech, speech translation, and speaker recognition. **Azure AI Vision** handles image analysis, optical character recognition (OCR), face detection, and custom image classification. **Azure AI Document Intelligence** extracts structured data from documents like invoices, receipts, tax forms, and contracts. **Azure AI Search** provides vector and keyword search with semantic ranking for building RAG solutions.
+**Azure OpenAI Service** provides access to large language models for text generation, summarization, translation, and code generation. **Microsoft Foundry** provides the platform for building and deploying AI agents, managing model deployments, and integrating tools. **Azure AI Language** offers pre-built NLP capabilities including sentiment analysis, key phrase extraction, named entity recognition, and text summarization. **Azure AI Speech** provides speech-to-text, text-to-speech, speech translation, and speaker recognition. **Azure AI Vision** handles image analysis, optical character recognition (OCR), face detection, and custom image classification. **Azure AI Document Intelligence** extracts structured data from documents like invoices, receipts, tax forms, and contracts. **Azure AI Search** provides vector and keyword search with semantic ranking for building RAG solutions.
 
 You will explore each of these services in depth in xref:ch06-nlp-and-speech.adoc[Chapters 6 through 8]. For now, what matters is understanding that real-world AI solutions rarely use a single service. They compose multiple services together -- an agent that uses Azure OpenAI for reasoning, Azure AI Search for document retrieval, Azure AI Document Intelligence for invoice processing, and Azure AI Language for sentiment analysis of customer feedback.
 
@@ -513,7 +513,7 @@ Define your target users by role, frequency of use, technical proficiency, and t
 
 Once you have scoped the problem and defined your users, map each requirement to an Azure AI service. Create a requirements matrix that lists each functional requirement alongside the Azure AI service (or services) that can fulfill it.
 
-For the insurance claims processing example, the matrix might look like this: extracting data from claims forms maps to Azure AI Document Intelligence; searching policy documents maps to Azure AI Search; analyzing customer sentiment in complaint emails maps to Azure AI Language; generating summary reports maps to Azure OpenAI Service; converting phone call recordings to text maps to Azure AI Speech; orchestrating the workflow maps to Azure AI Foundry agents.
+For the insurance claims processing example, the matrix might look like this: extracting data from claims forms maps to Azure AI Document Intelligence; searching policy documents maps to Azure AI Search; analyzing customer sentiment in complaint emails maps to Azure AI Language; generating summary reports maps to Azure OpenAI Service; converting phone call recordings to text maps to Azure AI Speech; orchestrating the workflow maps to Microsoft Foundry agents.
 
 Not every requirement needs its own service. Some requirements can be fulfilled by a single model with the right prompt. Others genuinely need a specialized service that has been trained for that specific task. The goal is to use the minimum number of services that covers your requirements well -- each additional service adds integration complexity, cost, and operational burden.
 
@@ -563,7 +563,7 @@ The capstone proposal is a one-page document (approximately 400-600 words) in wh
 
 **Target users.** Identify who will use your solution. Describe their role, their technical proficiency, and their primary workflow. How will your AI solution fit into their existing work -- will it replace a step, augment a step, or add a new capability? Think about Section 5.6.3 and user-centered design: what does this user need, and how should the AI present its capabilities?
 
-**Candidate Azure AI services.** Select at least three Azure AI services that your solution will use. For each service, explain what role it plays in your solution and why it is the right choice for that role. Reference the services landscape from Section 5.6.1. Avoid listing services just to hit the minimum -- each service should address a specific, identifiable requirement.
+**Candidate Foundry Tools.** Select at least three Foundry Tools that your solution will use. For each service, explain what role it plays in your solution and why it is the right choice for that role. Reference the services landscape from Section 5.6.1. Avoid listing services just to hit the minimum -- each service should address a specific, identifiable requirement.
 
 **Initial architecture sketch.** Provide a brief description (or diagram) of how the services connect. Which service handles which part of the workflow? How does data flow between services? Where does the user interact with the system? This does not need to be detailed implementation plans -- it is a conceptual architecture that shows you have thought about how the pieces fit together.
 
@@ -571,7 +571,7 @@ As you develop your proposal, revisit the feasibility assessment criteria from S
 
 === Peer Review
 
-You will review two classmates' proposals and provide constructive feedback. When reviewing, consider these questions: Is the problem well-defined, or is it too vague? Are the target users clearly identified? Do the selected services match the stated requirements, or are there gaps? Does the architecture make sense -- do the services connect in a logical way? Is the scope realistic for the available Azure AI services?
+You will review two classmates' proposals and provide constructive feedback. When reviewing, consider these questions: Is the problem well-defined, or is it too vague? Are the target users clearly identified? Do the selected services match the stated requirements, or are there gaps? Does the architecture make sense -- do the services connect in a logical way? Is the scope realistic for the available Foundry Tools?
 
 Effective peer feedback is specific and actionable. Instead of "this is good," explain _why_ it works: "The mapping of invoice processing to Document Intelligence is strong because the service is specifically trained for structured document extraction." Instead of "this needs work," explain _what_ to improve: "The proposal mentions Azure AI Vision but does not explain what images the system would analyze -- adding a specific use case would strengthen this section."
 
@@ -595,13 +595,13 @@ HTTP/SSE transport:: An MCP transport mechanism where the client sends requests 
 
 capability negotiation:: The phase of the MCP connection lifecycle in which the client and server exchange information about their supported features and available tools.
 
-Microsoft Agent Framework SDK:: A set of higher-level abstractions provided by Microsoft for building AI agents, handling execution loops, thread management, and tool orchestration over the Azure AI Foundry platform.
+Microsoft Agent Framework SDK:: A set of higher-level abstractions provided by Microsoft for building AI agents, handling execution loops, thread management, and tool orchestration over the Microsoft Foundry platform.
 
 thread:: In the Agent Framework SDK, a persistent conversation context that maintains the full history of messages, tool calls, and results across multiple agent interactions.
 
 trust boundary:: A point in a system architecture where data or control passes between components with different levels of trust, requiring validation and security checks at the crossing point.
 
-capstone proposal:: A concise design document that identifies a real-world problem, defines target users, selects candidate Azure AI services, and outlines a solution architecture.
+capstone proposal:: A concise design document that identifies a real-world problem, defines target users, selects candidate Foundry Tools, and outlines a solution architecture.
 
 feasibility assessment:: An evaluation of a proposed AI solution across technical, data, operational, and economic dimensions to determine whether the solution can be successfully built and deployed.
 
@@ -611,6 +611,6 @@ This chapter extended your agent development skills from hand-crafted, tightly c
 
 You then explored the Microsoft Agent Framework SDK, which provides higher-level abstractions over the direct API approach you used in xref:ch04-agent-development.adoc[Chapter 4]. The SDK handles the execution loop, conversation thread management, and tool orchestration, letting you focus on defining your agent's behavior rather than implementing the operational machinery. You compared the two approaches and learned when each is the right choice -- the SDK for standard patterns and rapid development, the direct API for fine-grained control and specialized behavior.
 
-Finally, you learned how to scope and design Azure AI solutions by surveying the Azure AI services landscape, applying problem scoping and user-centered design principles, and mapping requirements to specific services. These skills prepare you for the capstone proposal, where you will identify a real-world problem and design a solution using at least three Azure AI services.
+Finally, you learned how to scope and design Azure AI solutions by surveying the Foundry Tools landscape, applying problem scoping and user-centered design principles, and mapping requirements to specific services. These skills prepare you for the capstone proposal, where you will identify a real-world problem and design a solution using at least three Foundry Tools.
 
-Chapters 1 through 5 have covered the generative AI and agent development arc of this course. Beginning with xref:ch06-nlp-and-speech.adoc[Chapter 6], you will shift focus to specialized Azure AI services -- starting with Natural Language Processing and Speech -- that you can compose with the agent architectures you have built here. The patterns you learned in these first five chapters -- tool calling, execution loops, MCP integration, SDK abstractions -- will serve as the foundation for integrating these specialized services into intelligent, production-grade systems.
+Chapters 1 through 5 have covered the generative AI and agent development arc of this course. Beginning with xref:ch06-nlp-and-speech.adoc[Chapter 6], you will shift focus to specialized Foundry Tools -- starting with Natural Language Processing and Speech -- that you can compose with the agent architectures you have built here. The patterns you learned in these first five chapters -- tool calling, execution loops, MCP integration, SDK abstractions -- will serve as the foundation for integrating these specialized services into intelligent, production-grade systems.
