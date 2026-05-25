@@ -9,3 +9,6 @@ ui/build/
 ui/public/
 *.png.tmp
 cpcc-template-*.png
+
+# Playwright install for figure capture (sources kept, binaries ignored)
+graphics/node_modules/
