@@ -345,7 +345,7 @@ Section 1.5 made the case that model selection has real consequences for cost, l
 
 === Side-by-Side Comparison in the Catalog
 
-The Microsoft Foundry portal lets you compare candidate models directly. Starting from the model catalog, you can select two or more models and view their attributes side by side: provider, parameter count, context window size, supported deployment types, regional availability, and published benchmark scores. This comparison view is the right first filter -- it quickly eliminates models that are unavailable in your region, too small for your context needs, or priced outside your budget.
+The Microsoft Foundry portal lets you compare candidate models directly. Starting from the model catalog, you can select two or more models and view their attributes side by side: provider, parameter count (where published), context window size, supported deployment types, regional availability, and published benchmark scores. This comparison view is the right first filter -- it quickly eliminates models that are unavailable in your region, too small for your context needs, or priced outside your budget.
 
 Benchmark scores published on model cards are useful but limited. A model that tops a general reasoning leaderboard may still underperform on your domain -- summarizing insurance claims, answering questions about your product catalog, or extracting fields from your invoices. That is why catalog comparison is a starting point, not a final answer.
 
@@ -456,7 +456,7 @@ API endpoint:: A URL that serves as the access point for your deployed model. Yo
 
 == 1.10 Chapter Summary
 
-This chapter established the foundational concepts you need to plan, deploy, configure, and evaluate language models in Microsoft Foundry. You learned that the Microsoft Foundry platform provides a model catalog for discovery, deployment tools for getting models into production, and monitoring capabilities for tracking performance. You saw how to prepare a Foundry project -- choosing a region and resource -- and why **keyless authentication** with **managed identity** is the recommended, secure alternative to long-lived API keys, along with the roles quotas, cost, and monitoring play in planning a project responsibly.
+This chapter established the foundational concepts you need to plan, deploy, configure, and evaluate language models in Microsoft Foundry. You learned that the Microsoft Foundry platform provides a model catalog for discovery, deployment tools for getting models into production, and monitoring capabilities for tracking performance. You saw how to prepare a Foundry project -- choosing a region and resource -- and why **keyless authentication** with **managed identity** is the recommended, secure alternative to long-lived API keys, along with the roles that quotas, cost, and monitoring play in planning a project responsibly.
 
 You examined two deployment options -- serverless (pay-per-token, auto-scaling, variable latency) and provisioned (reserved throughput units, predictable latency, fixed cost) -- and developed a framework for choosing between them based on traffic patterns, latency requirements, and budget models. You explored the chat completion API in detail, learning how system messages, user messages, and assistant messages form a structured conversation, and how parameters like temperature, max_tokens, top_p, and frequency_penalty shape the model's output -- in both key-based and keyless authentication patterns.
 
