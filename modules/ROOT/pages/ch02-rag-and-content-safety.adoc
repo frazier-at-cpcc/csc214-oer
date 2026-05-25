@@ -149,7 +149,7 @@ You can evaluate the difference between grounded and ungrounded responses across
 
 **Hallucination reduction.** Grounding data gives the model an alternative to fabrication. When the system message instructs the model to answer only from provided sources, and the sources contain the relevant information, the model has no reason to invent details. Hallucination rates drop significantly -- though they do not reach zero, because the model may still misinterpret retrieved chunks or fill gaps between them with generated content.
 
-**Source traceability.** With RAG, every piece of information in the model's response can be linked to a specific retrieved chunk. This traceability enables citation, auditing, and trust. Users can verify the model's claims by checking the original source. This is particularly valuable in academic, legal, medical, and financial contexts where accuracy is critical and accountability matters. In xref:ch03-evaluation-and-agents-intro.adoc[Chapter 3], you will learn about the **groundedness metric**, which formally measures how well a model's response is supported by its retrieved context.
+**Source traceability.** With RAG, every piece of information in the model's response can be linked to a specific retrieved chunk. This traceability enables citation, auditing, and trust. Users can verify the model's claims by checking the original source. This is particularly valuable in academic, legal, medical, and financial contexts where accuracy is critical and accountability matters. You will see how groundedness is measured as an evaluator later in this chapter (Section 2.4.8), where the **groundedness metric** formally measures how well a response is anchored in its retrieved context.
 
 === 2.3.3 Limitations of RAG
 
@@ -181,9 +181,9 @@ Grounding a model in your own data improves accuracy, but it does not guarantee 
 
 This section covers three pillars of responsible AI as they apply to a grounded application:
 
-* **Content safety filtering** (sections 2.4.1--2.4.6) -- automated, configurable detection and blocking of harmful content on both inputs and outputs.
-* **Evaluators and safety evaluations** (section 2.4.7) -- measuring groundedness and safety so quality is a number you can track, not a hunch.
-* **Auditing: trace logging and provenance** (section 2.4.8) -- recording what the system retrieved, generated, and filtered so decisions can be reviewed and defended.
+* **Content safety filtering** (sections 2.4.1--2.4.7) -- automated, configurable detection and blocking of harmful content on both inputs and outputs.
+* **Evaluators and safety evaluations** (section 2.4.8) -- measuring groundedness and safety so quality is a number you can track, not a hunch.
+* **Auditing: trace logging and provenance** (section 2.4.9) -- recording what the system retrieved, generated, and filtered so decisions can be reviewed and defended.
 
 // GRAPHIC TODO: responsible-ai-governance-layers
 image::ch02/g2-6-responsible-ai-layers.png[Responsible AI Governance Layers]
@@ -267,7 +267,7 @@ Beyond the four harm categories, Azure AI Content Safety provides additional pro
 Default thresholds may be too permissive or too restrictive depending on your use case -- always configure intentionally. For a university library assistant, leaving all thresholds at their defaults could either block legitimate academic discussions about sensitive topics or allow content that is inappropriate for your institution. Review each category and severity level against your application's requirements, document your threshold choices, and revisit them periodically as you observe real user interactions.
 ====
 
-=== Configuring Content Filters via the API
+=== 2.4.7 Configuring Content Filters via the API
 
 The following Python example demonstrates how to configure content safety filters when creating a deployment or making API calls with content filtering parameters. This example uses the Azure OpenAI client to send a chat completion request with explicit content filter configuration:
 
@@ -340,7 +340,7 @@ if prompt_filter:
 
 Content filter thresholds are configured at the deployment level through the Microsoft Foundry portal or the Azure Management API. When you create or update a deployment, you specify the severity threshold for each harm category. The chat completion API then applies those thresholds automatically to every request and response.
 
-=== 2.4.7 Evaluators and Safety Evaluations
+=== 2.4.8 Evaluators and Safety Evaluations
 
 Filters and guardrails decide what a single request is allowed to do. They do not, by themselves, tell you _how well_ your application performs across many requests. For that you need **evaluators** -- automated tests that score model outputs against a metric so quality and safety become numbers you can track over time rather than impressions.
 
@@ -348,7 +348,7 @@ In Microsoft Foundry, evaluations run a set of inputs through your application a
 
 **Quality and groundedness evaluators.** These measure whether a response is supported by the retrieved context, relevant to the question, and coherent. The **groundedness** evaluator is the most important one for a RAG system: it compares each claim in the response against the retrieved chunks and scores how well the response is anchored in that source material. A low groundedness score is a direct signal that the model is hallucinating past its grounding data -- the very problem RAG was meant to solve. Related evaluators include **relevance** (did retrieval surface the right context?) and **coherence** (is the answer well-formed?).
 
-**Safety evaluations.** These probe whether the application can be made to produce harmful content -- the same harm categories the content filters target (hate and fairness, violence, sexual, self-harm), plus risks like jailbreak susceptibility and ungrounded or fabricated claims. A safety evaluation typically runs a battery of adversarial and edge-case prompts and reports, per category, how often the application produced content above a severity threshold. Where a content filter blocks one request in the moment, a safety evaluation tells you the _rate_ at which your configuration lets harmful content through across a representative test set.
+**Safety evaluations.** These probe whether the application can be made to produce harmful content -- the same harm categories the content filters target (hate and fairness, violence, sexual, self-harm), plus risks like jailbreak susceptibility and ungrounded or fabricated claims. A safety evaluation typically runs a battery of adversarial and edge-case prompts and reports, per category, how often the application produced content at or above a severity threshold (for example, at or above Medium). Where a content filter blocks one request in the moment, a safety evaluation tells you the _rate_ at which your configuration lets harmful content through across a representative test set.
 
 The two groups are complementary. Quality evaluators answer "is the application accurate and grounded?"; safety evaluations answer "is the application hard to misuse?" Both produce metrics you can compare before and after a change -- a new model version, a different chunking strategy, a stricter filter threshold -- so you can tell whether the change actually improved the system or merely moved the problem.
 
@@ -357,7 +357,7 @@ The two groups are complementary. Quality evaluators answer "is the application 
 Treat evaluation as a regression test for your AI application. Capture a fixed set of representative and adversarial prompts, run your groundedness and safety evaluators against them, and record the scores. When you change the model, the index, or the filter thresholds, re-run the same evaluation. If groundedness drops or unsafe-output rates rise, you have caught a regression before your users do.
 ====
 
-=== 2.4.8 Auditing: Trace Logging and Provenance
+=== 2.4.9 Auditing: Trace Logging and Provenance
 
 Responsible AI also requires that decisions be **auditable** -- that you can reconstruct, after the fact, what the system did and why. Two mechanisms make a grounded application auditable.
 
