@@ -34,7 +34,7 @@ This chapter walks through each capability, then helps you build a decision fram
 
 == 7.2 Multimodal Understanding
 
-A **multimodal model** processes more than one type of input -- most importantly for this chapter, text *and* images -- within a single model architecture. Azure AI Foundry provides access to multimodal generative models (such as GPT-4o and other vision-capable models) that accept an image alongside a text prompt and return a free-form text response that reasons about the image. This is the foundation of a *vision-enabled chat app*: a researcher or content editor sends a picture and a question, and the model answers.
+A **multimodal model** processes more than one type of input -- most importantly for this chapter, text *and* images -- within a single model architecture. Microsoft Foundry provides access to multimodal generative models (such as GPT-4o and other vision-capable models) that accept an image alongside a text prompt and return a free-form text response that reasons about the image. This is the foundation of a *vision-enabled chat app*: a designer or content editor sends a picture and a question, and the model answers.
 
 This is fundamentally different from a fixed-function vision API that returns a rigid JSON structure. A multimodal model returns natural language that can describe a scene, answer an open-ended question, compare several images, or write a paragraph of accessibility text -- and it can do all of this in a single conversation, with follow-up turns. For Piedmont Media, multimodal understanding is the engine behind both the accessibility-description pipeline and the team's interactive "ask the library a question" tool.
 
@@ -81,7 +81,7 @@ A multimodal model's region output is descriptive and approximate rather than pi
 // GRAPHIC TODO: multimodal-understanding
 image::ch07/g7-7-multimodal-understanding.png[Multimodal Understanding]
 
-The following example illustrates sending an image to a multimodal chat model and asking it to produce both alt-text and a grounded answer. SDK names and method signatures evolve quickly; treat this as illustrative of the *shape* of a multimodal request rather than a copy-paste recipe, and confirm the current SDK surface against the Azure AI Foundry documentation.
+The following example illustrates sending an image to a multimodal chat model and asking it to produce both alt-text and a grounded answer. SDK names and method signatures evolve quickly; treat this as illustrative of the *shape* of a multimodal request rather than a copy-paste recipe, and confirm the current SDK surface against the Microsoft Foundry documentation.
 
 [source,python]
 ----
@@ -133,7 +133,7 @@ print(response.choices[0].message.content)
 
 == 7.3 Image (and Video) Generation and Editing
 
-Where Section 7.2 *understands* existing visual media, this section *creates and modifies* it. Azure AI Foundry provides access to **image generation models** that turn text prompts -- and, increasingly, reference media -- into new images, plus editing controls that modify existing images in targeted ways. This is the creative engine Piedmont Media's designers have been waiting for.
+Where Section 7.2 *understands* existing visual media, this section *creates and modifies* it. Microsoft Foundry provides access to **image generation models** that turn text prompts -- and, increasingly, reference media -- into new images, plus editing controls that modify existing images in targeted ways. This is the creative engine Piedmont Media's designers have been waiting for.
 
 === 7.3.1 Generating Images from Text and Reference Media
 
@@ -316,7 +316,7 @@ The assessment this week asks you to build exactly this kind of comparison -- ma
 
 This chapter's three labs move you from understanding concepts to building working implementations across the full vision toolkit.
 
-**Lab 18: Develop a vision-enabled chat app.** You will build a chat application that accepts both text and images and sends them to a multimodal model through Azure AI Foundry, then use it to caption images, answer grounded visual questions, and generate accessibility descriptions. This lab brings Section 7.2 to life. Watch for:
+**Lab 18: Develop a vision-enabled chat app.** You will build a chat application that accepts both text and images and sends them to a multimodal model through Microsoft Foundry, then use it to caption images, answer grounded visual questions, and generate accessibility descriptions. This lab brings Section 7.2 to life. Watch for:
 
 * How the system prompt's grounding instructions change the model's willingness to guess versus admit uncertainty.
 * The difference between concise alt-text and a fuller extended description for the same image.
