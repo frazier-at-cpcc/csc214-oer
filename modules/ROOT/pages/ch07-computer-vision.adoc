@@ -78,7 +78,6 @@ This object-and-region identification is what lets Piedmont Media's library tool
 
 A multimodal model's region output is descriptive and approximate rather than pixel-perfect. When you need consistent, structured, high-throughput extraction of visual characteristics across thousands of assets, Content Understanding (Section 7.4) is the better tool. The two complement each other: multimodal understanding for flexible, conversational analysis of one image at a time, Content Understanding for structured extraction at library scale.
 
-// GRAPHIC TODO: multimodal-understanding
 image::ch07/g7-1-multimodal-understanding.png[Multimodal Understanding]
 
 The following example illustrates sending an image to a multimodal chat model and asking it to produce both alt-text and a grounded answer. SDK names and method signatures evolve quickly; treat this as illustrative of the *shape* of a multimodal request rather than a copy-paste recipe, and confirm the current SDK surface against the Microsoft Foundry documentation.
@@ -169,7 +168,6 @@ The same generative ideas now extend to **video**. Video generation models produ
 
 Video generation is newer and more constrained than image generation -- clips are short, compute cost is higher, and consistency across frames is harder -- so treat it as an emerging capability rather than a mature production workflow. The mental model carries over directly: a text prompt (optionally plus reference media) drives generation, and controls govern length, resolution, and style. For this course, you should understand that video generation and editing exist, sit alongside image generation in the same family of capabilities, and follow the same prompt-and-control pattern.
 
-// GRAPHIC TODO: image-generation-and-editing
 image::ch07/g7-2-image-generation-editing.png[Image Generation and Editing]
 
 [TIP]
@@ -203,7 +201,6 @@ Content Understanding analyzes **video** as well as still images, and the key ne
 
 Content Understanding offers **prebuilt analyzers** for common image and video tasks, so you can get structured output without designing a schema from scratch, as well as custom analyzers you define for your own fields. For Piedmont Media's clip library, segment-level analysis means an editor can search *into* a video -- jumping to the 12-second span that actually shows the branded banner -- instead of scrubbing the whole clip. Treat video-segment analysis as an introductory capability here; the essential takeaway is that Content Understanding extends structured extraction from single images to time-segmented video.
 
-// GRAPHIC TODO: content-understanding-image-pipeline
 image::ch07/g7-3-content-understanding-image.png[Content Understanding for Images]
 
 [NOTE]

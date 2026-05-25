@@ -1,0 +1,35 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css">
+<style>
+.panel{flex:1;display:flex;flex-direction:column;gap:20px;align-items:center;}
+.shot{width:760px;height:428px;position:relative;}
+.shot img{width:760px;height:428px;}
+.mask{position:absolute;left:300px;top:150px;width:210px;height:250px;
+  background:rgba(220,38,38,.32);border:4px dashed var(--red);border-radius:12px;}
+.cap{font-size:30px;color:var(--muted);text-align:center;}
+.step{font-size:30px;font-weight:700;}
+.bigarrow{font-size:80px;color:var(--line);align-self:center;}
+</style></head>
+<body><div id="fig">
+  <h1 class="fig-title">Image Generation &amp; Editing</h1>
+  <p class="fig-sub">Generate from a prompt, then edit a masked region — no re-shoot required</p>
+  <div class="row" style="gap:36px;align-items:center;margin-top:24px;">
+    <div class="panel">
+      <div class="step" style="color:var(--blue);">1 · Generate</div>
+      <div class="shot"><img src="../assets/g7-2-generated.jpg"></div>
+      <div class="cap">Text prompt &rarr; new image</div>
+    </div>
+    <div class="bigarrow">&rarr;</div>
+    <div class="panel">
+      <div class="step" style="color:var(--orange);">2 · Mask</div>
+      <div class="shot"><img src="../assets/g7-2-generated.jpg"><div class="mask"></div></div>
+      <div class="cap">Mark the region to change</div>
+    </div>
+    <div class="bigarrow">&rarr;</div>
+    <div class="panel">
+      <div class="step" style="color:var(--green);">3 · Inpaint result</div>
+      <div class="shot"><img src="../assets/g7-2-inpainted.jpg"></div>
+      <div class="cap">Prompt-driven edit fills the mask</div>
+    </div>
+  </div>
+  <p class="note">Generation from prompts and reference media, plus inpainting and mask-based edits — Lab 19.</p>
+</div></body></html>
