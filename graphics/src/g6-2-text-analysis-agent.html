@@ -1,0 +1,87 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="style.css">
+<style>
+.tool-chip{padding:18px 24px;border-radius:12px;font-size:28px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:16px;}
+.json-block{background:#1e293b;color:#a3e635;font-family:"Cascadia Code","Consolas",monospace;font-size:26px;border-radius:12px;padding:28px 32px;line-height:1.6;}
+.io-label{font-size:28px;font-weight:700;margin-bottom:14px;color:var(--muted);}
+.arrow-h{display:flex;align-items:center;gap:0;flex-shrink:0;}
+</style>
+</head>
+<body>
+<div id="fig">
+  <h1 class="fig-title">Text-Analysis Agent</h1>
+  <p class="fig-sub">Generative prompting + Foundry Tools — no custom model training required</p>
+
+  <div class="row" style="align-items:center;gap:40px;margin-top:20px;">
+
+    <!-- Input document -->
+    <div style="width:340px;flex-shrink:0;">
+      <div class="io-label">Input document</div>
+      <div class="box" style="padding:36px;background:#f8fafc;">
+        <div style="font-size:30px;font-weight:700;margin-bottom:16px;color:var(--ink);">Contract / Email / Filing</div>
+        <div style="font-size:26px;color:var(--muted);line-height:1.6;">
+          PDF, DOCX, or plain text<br>Any language, any format
+        </div>
+        <div style="margin-top:20px;">
+          <span class="tag orange" style="font-size:24px;">unstructured input</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Arrow in -->
+    <div class="arrow-h">
+      <div class="arrow" style="width:80px;"></div>
+    </div>
+
+    <!-- Agent center -->
+    <div style="flex:1;">
+      <div class="box blue" style="padding:36px 40px;text-align:center;">
+        <div style="font-size:40px;font-weight:700;color:var(--blue);margin-bottom:8px;">Agent (LLM + instructions)</div>
+        <div style="font-size:26px;color:var(--muted);margin-bottom:32px;">Orchestrates the four tools below</div>
+
+        <div class="col" style="gap:10px;text-align:left;">
+          <div class="tool-chip" style="background:var(--teal-bg);border:2px solid var(--teal);color:var(--teal);">
+            <span>🔍</span> Structured-extraction prompt <span style="font-size:24px;color:var(--muted);">(→ JSON)</span>
+          </div>
+          <div class="tool-chip" style="background:var(--teal-bg);border:2px solid var(--teal);color:var(--teal);">
+            <span>🌐</span> Azure Translator (Foundry Tool)
+          </div>
+          <div class="tool-chip" style="background:var(--teal-bg);border:2px solid var(--teal);color:var(--teal);">
+            <span>📊</span> Language analysis
+          </div>
+          <div class="tool-chip" style="background:var(--teal-bg);border:2px solid var(--teal);color:var(--teal);">
+            <span>💾</span> Persist to case system
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Arrow out -->
+    <div class="arrow-h">
+      <div class="arrow" style="width:80px;"></div>
+    </div>
+
+    <!-- Structured output -->
+    <div style="width:420px;flex-shrink:0;">
+      <div class="io-label">Structured output</div>
+      <div class="json-block">
+{<br>
+&nbsp;&nbsp;"parties": [...],<br>
+&nbsp;&nbsp;"dates": [...],<br>
+&nbsp;&nbsp;"amounts": [...]<br>
+}
+      </div>
+      <div style="margin-top:16px;">
+        <span class="tag green" style="font-size:24px;">structured JSON</span>
+      </div>
+    </div>
+
+  </div>
+
+  <p class="note">Generative prompting + Foundry Tools, no custom training — Lab 13.</p>
+</div>
+</body>
+</html>

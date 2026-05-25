@@ -1,0 +1,99 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="style.css">
+<style>
+.pipeline-chip{padding:24px 30px;border-radius:14px;font-size:30px;font-weight:700;text-align:center;flex:1;}
+.json-block{background:#1e293b;color:#a3e635;font-family:"Cascadia Code","Consolas",monospace;font-size:24px;border-radius:12px;padding:24px 28px;line-height:1.6;margin-bottom:14px;}
+.md-block{background:#f0fdf4;border:2px solid var(--green);border-radius:12px;padding:20px 24px;font-family:"Cascadia Code","Consolas",monospace;font-size:24px;line-height:1.6;color:#166534;margin-bottom:14px;}
+.conf-low{display:inline-block;padding:6px 16px;border-radius:8px;font-size:22px;font-weight:700;background:var(--amber-bg);color:#b45309;border:2px solid var(--amber);}
+</style>
+</head>
+<body>
+<div id="fig">
+  <h1 class="fig-title">Content Understanding: Multimodal Extraction</h1>
+  <p class="fig-sub">From unstructured documents to grounded, machine-readable representations</p>
+
+  <div class="row" style="align-items:center;gap:48px;margin-top:24px;">
+
+    <!-- Input document -->
+    <div style="width:380px;flex-shrink:0;">
+      <div class="label" style="margin-bottom:14px;font-size:28px;font-weight:700;">Input document</div>
+      <div class="box" style="padding:36px;background:#f8fafc;">
+        <div style="font-size:30px;font-weight:700;margin-bottom:16px;">Mixed document</div>
+        <!-- Simulated scan + form -->
+        <div style="background:#e2e8f0;border-radius:10px;height:100px;display:flex;align-items:center;justify-content:center;margin-bottom:12px;">
+          <span style="font-size:26px;color:#94a3b8;">📄 scan / photo</span>
+        </div>
+        <div style="background:#f1f5f9;border:2px dashed #94a3b8;border-radius:10px;padding:14px 18px;">
+          <div style="font-size:24px;color:#475569;">Patient: ___________</div>
+          <div style="font-size:24px;color:#475569;">Date: ______________</div>
+          <div style="font-size:24px;color:#475569;">Meds: ______________</div>
+        </div>
+        <div style="margin-top:16px;">
+          <span class="tag orange" style="font-size:24px;">unstructured</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Arrow: analyzer -->
+    <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;">
+      <div style="font-size:24px;color:var(--muted);margin-bottom:6px;">analyzer</div>
+      <div class="arrow" style="width:90px;"></div>
+    </div>
+
+    <!-- Pipeline chips -->
+    <div style="flex:1;">
+      <div class="label" style="margin-bottom:14px;font-size:28px;font-weight:700;">Processing pipeline</div>
+      <div class="row" style="gap:12px;align-items:stretch;margin-bottom:20px;">
+        <div class="pipeline-chip" style="background:var(--blue-bg);border:3px solid var(--blue);color:var(--blue);">
+          OCR<br><span style="font-size:24px;font-weight:400;color:var(--muted);">text extraction</span>
+        </div>
+        <div style="align-self:center;font-size:40px;color:var(--muted);">→</div>
+        <div class="pipeline-chip" style="background:var(--teal-bg);border:3px solid var(--teal);color:var(--teal);">
+          Layout Analysis<br><span style="font-size:24px;font-weight:400;color:var(--muted);">tables · headings · regions</span>
+        </div>
+        <div style="align-self:center;font-size:40px;color:var(--muted);">→</div>
+        <div class="pipeline-chip" style="background:var(--blue-bg);border:3px solid var(--blue);color:var(--blue);">
+          Field Extraction<br><span style="font-size:24px;font-weight:400;color:var(--muted);">entities · values · schema</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Arrow out -->
+    <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;">
+      <div style="font-size:24px;color:var(--muted);margin-bottom:6px;">output</div>
+      <div class="arrow" style="width:80px;"></div>
+    </div>
+
+    <!-- Output block -->
+    <div style="width:480px;flex-shrink:0;">
+      <div class="label" style="margin-bottom:14px;font-size:28px;font-weight:700;">Structured output</div>
+
+      <div class="md-block">
+## Discharge Summary<br>
+**Patient:** Jane Smith<br>
+**Date:** 2026-05-01
+      </div>
+
+      <div class="json-block">
+{<br>
+&nbsp;"patient": "Jane Smith",<br>
+&nbsp;"dischargeDate": "2026-05-01",<br>
+&nbsp;"medications": ["metformin", ...]<br>
+}
+      </div>
+
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+        <span class="tag green" style="font-size:24px;">high confidence</span>
+        <span class="conf-low">⚠ low confidence → review</span>
+      </div>
+    </div>
+
+  </div>
+
+  <p class="note">Grounded representations feed agents and RAG — Labs 21–22.</p>
+</div>
+</body>
+</html>

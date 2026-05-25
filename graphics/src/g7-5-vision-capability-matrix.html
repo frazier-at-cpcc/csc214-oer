@@ -1,0 +1,69 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="style.css">
+<style>
+th{font-size:32px;}
+td{font-size:28px;line-height:1.4;}
+.cap-label{font-size:32px;font-weight:700;}
+</style>
+</head>
+<body>
+<div id="fig">
+  <h1 class="fig-title">AI-103 Vision Capabilities</h1>
+  <p class="fig-sub">Four capability areas — each with distinct input, output, and use case</p>
+
+  <table style="margin-top:20px;">
+    <thead>
+      <tr>
+        <th style="width:22%;">Capability</th>
+        <th style="width:22%;">Typical Input</th>
+        <th style="width:22%;">Output</th>
+        <th style="width:34%;">Best For</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          <span class="tag blue" style="margin-bottom:8px;display:inline-block;">Multimodal Understanding</span><br>
+          <span style="font-size:26px;color:var(--muted);">vision chat / VQA</span>
+        </td>
+        <td>Image + text prompt</td>
+        <td>Captions, visual Q&amp;A, alt-text</td>
+        <td>Flexible visual reasoning — describe, answer questions about, or generate accessibility text for any image</td>
+      </tr>
+      <tr>
+        <td>
+          <span class="tag blue" style="margin-bottom:8px;display:inline-block;">Image Generation &amp; Editing</span><br>
+          <span style="font-size:26px;color:var(--muted);">image generation models</span>
+        </td>
+        <td>Text prompt + optional reference media / mask</td>
+        <td>New or edited images</td>
+        <td>Creating marketing visuals, product mockups, inpainting to change or remove objects</td>
+      </tr>
+      <tr>
+        <td>
+          <span class="tag teal" style="margin-bottom:8px;display:inline-block;">Content Understanding</span><br>
+          <span style="font-size:26px;color:var(--muted);">document + video intelligence</span>
+        </td>
+        <td>Image, video, or document (PDF / scan)</td>
+        <td>Structured fields, markdown, JSON</td>
+        <td>Extraction at scale — invoices, forms, medical records, video transcripts, slide decks</td>
+      </tr>
+      <tr>
+        <td>
+          <span class="tag orange" style="margin-bottom:8px;display:inline-block;">Responsible AI Layer</span><br>
+          <span style="font-size:26px;color:var(--muted);">safety filters &amp; policy</span>
+        </td>
+        <td>Any visual content</td>
+        <td>Filtered or policy-checked output; violation reports</td>
+        <td>Safety compliance, brand protection, anti-injection defense — applied on top of all other capabilities</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p class="note" style="margin-top:32px;">Understanding which capability to use is the first step in every AI-103 vision scenario.</p>
+</div>
+</body>
+</html>

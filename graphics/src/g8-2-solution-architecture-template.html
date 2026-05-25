@@ -1,0 +1,78 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="style.css">
+<style>
+.tier-label{font-size:34px;font-weight:700;margin-bottom:16px;text-align:center;}
+.tier-box{border:3px dashed var(--line);border-radius:20px;padding:28px 32px;background:rgba(255,255,255,0.7);}
+.comp-box{border-radius:14px;padding:20px 24px;font-size:28px;font-weight:600;text-align:center;margin-bottom:10px;}
+.tier-arrow{font-size:48px;color:var(--muted);align-self:center;flex-shrink:0;padding:0 20px;}
+.cross-bar{background:var(--purple-bg);border:3px solid var(--purple);border-radius:16px;padding:28px 24px;writing-mode:vertical-rl;text-orientation:mixed;font-size:26px;font-weight:600;color:var(--purple);line-height:1.5;flex-shrink:0;}
+</style>
+</head>
+<body>
+<div id="fig">
+  <h1 class="fig-title">Agentic Multimodal Solution (Reference)</h1>
+  <p class="fig-sub">Three-tier template — customize components for your use case</p>
+
+  <div class="row" style="align-items:stretch;gap:20px;margin-top:20px;">
+
+    <!-- Tier 1: Inputs -->
+    <div style="flex:1;">
+      <div class="tier-label" style="color:var(--muted);">Inputs</div>
+      <div class="tier-box" style="height:540px;display:flex;flex-direction:column;justify-content:space-evenly;">
+        <div class="comp-box" style="background:#f1f5f9;border:2px solid #cbd5e1;color:#475569;">📄 Documents (PDF, DOCX)</div>
+        <div class="comp-box" style="background:#f1f5f9;border:2px solid #cbd5e1;color:#475569;">🖼️ Images &amp; video</div>
+        <div class="comp-box" style="background:#f1f5f9;border:2px solid #cbd5e1;color:#475569;">🎙️ Audio</div>
+        <div class="comp-box" style="background:#f1f5f9;border:2px solid #cbd5e1;color:#475569;">💬 User (chat / API)</div>
+      </div>
+    </div>
+
+    <div class="tier-arrow">→</div>
+
+    <!-- Tier 2: AI Layer -->
+    <div style="flex:2;">
+      <div class="tier-label" style="color:var(--blue);">AI Layer</div>
+      <div class="tier-box" style="height:540px;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-content:start;border-color:var(--blue);">
+        <div class="comp-box" style="background:var(--purple-bg);border:2px solid var(--purple);color:var(--purple);">
+          🤖 Agent<br><span style="font-size:24px;font-weight:400;">(Foundry Agent Service)</span>
+        </div>
+        <div class="comp-box" style="background:var(--blue-bg);border:2px solid var(--blue);color:var(--blue);">
+          📚 Foundry IQ Knowledge<br><span style="font-size:24px;font-weight:400;">RAG + agentic retrieval</span>
+        </div>
+        <div class="comp-box" style="background:var(--teal-bg);border:2px solid var(--teal);color:var(--teal);">
+          🔧 Tools / MCP<br><span style="font-size:24px;font-weight:400;">Foundry + custom tools</span>
+        </div>
+        <div class="comp-box" style="background:var(--teal-bg);border:2px solid var(--teal);color:var(--teal);">
+          📄 Content Understanding<br><span style="font-size:24px;font-weight:400;">extraction at scale</span>
+        </div>
+        <div class="comp-box" style="grid-column:1/-1;background:var(--blue-bg);border:2px solid var(--blue);color:var(--blue);">
+          ✨ Generative Models<br><span style="font-size:24px;font-weight:400;">GPT-4o · vision · speech · image-gen</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="tier-arrow">→</div>
+
+    <!-- Tier 3: Outputs -->
+    <div style="flex:1;">
+      <div class="tier-label" style="color:var(--muted);">Outputs</div>
+      <div class="tier-box" style="height:540px;display:flex;flex-direction:column;justify-content:space-evenly;">
+        <div class="comp-box" style="background:var(--green-bg);border:2px solid var(--green);color:var(--green);">💬 Chat responses</div>
+        <div class="comp-box" style="background:var(--green-bg);border:2px solid var(--green);color:var(--green);">📊 Reports &amp; summaries</div>
+        <div class="comp-box" style="background:var(--green-bg);border:2px solid var(--green);color:var(--green);">🔌 API / webhook</div>
+      </div>
+    </div>
+
+    <!-- Cross-cutting bar -->
+    <div class="cross-bar" style="align-self:stretch;margin-top:56px;height:540px;text-align:center;justify-content:center;display:flex;align-items:center;">
+      Cross-cutting:<br>Responsible AI<br>· evaluation<br>· monitoring<br>· keyless auth
+    </div>
+
+  </div>
+
+  <p class="note">Dotted borders indicate a template — replace components with your actual services and data sources.</p>
+</div>
+</body>
+</html>

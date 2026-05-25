@@ -1,11 +1,13 @@
-= Chapter 1: Generative AI Foundations
+= Chapter 1: Foundations: Models, Deployment & Evaluation
 
 == Learning Objectives
 
 By the end of this chapter, you will be able to:
 
-. Compare deployment options (serverless vs. provisioned) for language models in Azure AI Foundry based on cost, latency, and capability factors.
+. Prepare a Microsoft Foundry project for secure development by configuring keyless authentication with managed identity instead of API keys.
+. Compare deployment options (serverless vs. provisioned) for language models in Microsoft Foundry based on cost, latency, and capability factors.
 . Configure a chat completion API call with appropriate parameters (temperature, max tokens, system message).
+. Compare candidate models side by side and interpret evaluation output (quality, latency, and cost metrics) to justify a model choice.
 . Explain how model selection decisions affect application performance and cost.
 
 == 1.1 Introduction: Choosing the Right Model for the Job
@@ -14,48 +16,79 @@ Imagine you are the lead developer at a growing startup called HelpDesk Hero. Yo
 
 You sit down with your team and realize that the technical decisions ahead of you are not about whether to use a language model, but _how_ to use one. Which model should you choose from the dozens available? Should you pay per token as requests come in, or reserve dedicated capacity up front? What parameters should you set to get responses that are accurate without being robotic? These are not abstract questions -- they determine whether your chatbot delights customers or frustrates them, whether your cloud bill is manageable or alarming, and whether your application can scale as the business grows.
 
-This chapter equips you with the foundational knowledge to make these decisions confidently. You will learn about the Azure AI Foundry platform and its model catalog, understand the differences between serverless and provisioned deployment options, configure chat completion API calls with parameters that shape model behavior, and reason about how model selection affects performance, cost, and user experience downstream.
+This chapter equips you with the foundational knowledge to make these decisions confidently. You will learn how to prepare a Microsoft Foundry project for secure development, explore the model catalog, understand the differences between serverless and provisioned deployment options, configure chat completion API calls with parameters that shape model behavior, compare and evaluate candidate models, and reason about how model selection affects performance, cost, and user experience downstream.
 
 Here is the roadmap for the chapter:
 
-* **Section 1.2** introduces the Azure AI Foundry platform and its core capabilities.
+* **Section 1.2** introduces the Microsoft Foundry platform, how to prepare a project, and how to authenticate securely without API keys.
 * **Section 1.3** compares deployment options -- serverless and provisioned -- so you can match deployment strategy to application requirements.
 * **Section 1.4** walks through the anatomy of a chat completion API call, including the parameters that control model behavior.
 * **Section 1.5** examines how your choice of model ripples through every aspect of application performance and cost.
-* **Sections 1.6 and 1.7** connect the chapter material to your hands-on labs and the discussion post assessment.
+* **Section 1.6** shows how to compare candidate models side by side and read evaluation metrics so you can justify a model choice with evidence.
+* **Sections 1.7 and 1.8** connect the chapter material to your hands-on labs and the discussion post assessment.
 
-By the end, you will have a clear framework for approaching the deployment and configuration decisions that every generative AI project demands.
+By the end, you will have a clear framework for approaching the project setup, deployment, configuration, and evaluation decisions that every generative AI project demands.
 
-== 1.2 The Azure AI Foundry Platform
+== 1.2 The Microsoft Foundry Platform
 
-Azure AI Foundry is Microsoft's unified platform for discovering, deploying, and managing AI models. It brings together model selection, deployment configuration, monitoring, and responsible AI tooling into a single environment. Whether you are experimenting with a prototype or running a production workload, Azure AI Foundry provides the infrastructure and interfaces you need.
+Microsoft Foundry is Microsoft's unified platform for discovering, deploying, and managing AI models. It brings together model selection, deployment configuration, monitoring, and responsible AI tooling into a single environment. Whether you are experimenting with a prototype or running a production workload, Microsoft Foundry provides the infrastructure and interfaces you need.
 
-=== What Azure AI Foundry Provides
+=== What Microsoft Foundry Provides
 
-Azure AI Foundry offers three core capabilities that you will use throughout this course:
+Microsoft Foundry offers three core capabilities that you will use throughout this course:
 
 **Model Catalog.** The model catalog is a searchable directory of language models from multiple providers, including OpenAI, Meta, Mistral, and Microsoft. Each model in the catalog has a **model card** -- a summary page that describes the model's capabilities, supported tasks, pricing, context window size, and regional availability. The model catalog is your starting point for any deployment decision, because it lets you compare models side by side before committing resources.
 
-**Deployment Management.** Once you select a model, Azure AI Foundry provides the tools to deploy it as an API endpoint. You can choose between deployment options (which we cover in detail in Section 1.3), configure scaling settings, and manage endpoint lifecycle -- all from the portal or programmatically through the Azure SDK. Each deployment produces an **API endpoint** -- a URL that your application calls to send prompts and receive completions.
+**Deployment Management.** Once you select a model, Microsoft Foundry provides the tools to deploy it as an API endpoint. You can choose between deployment options (which we cover in detail in Section 1.3), configure scaling settings, and manage endpoint lifecycle -- all from the portal or programmatically through the Azure SDK. Each deployment produces an **API endpoint** -- a URL that your application calls to send prompts and receive completions.
 
-**Monitoring and Responsible AI.** After deployment, Azure AI Foundry provides dashboards for tracking usage, latency, error rates, and token consumption. It also integrates content safety tools, which you will explore in depth in xref:ch02-rag-and-content-safety.adoc[Chapter 2].
+**Monitoring and Responsible AI.** After deployment, Microsoft Foundry provides dashboards for tracking usage, latency, error rates, and token consumption. It also integrates content safety tools, which you will explore in depth in xref:ch02-rag-and-content-safety.adoc[Chapter 2].
 
 === Navigating the Foundry Portal
 
-When you first open the Azure AI Foundry portal, you will see a project-based workspace. Each project groups related deployments, datasets, and evaluation runs. Within a project, the left navigation panel gives you access to the model catalog, your active deployments, a playground for interactive testing, and evaluation tools.
+When you first open the Microsoft Foundry portal, you will see a project-based workspace. Each project groups related deployments, datasets, and evaluation runs. Within a project, the left navigation panel gives you access to the model catalog, your active deployments, a playground for interactive testing, and evaluation tools.
 
-The playground is particularly useful during development. It lets you send prompts to a deployed model, adjust parameters in real time, and observe how changes affect output -- all without writing code. You will use the playground extensively in Lab 01 to verify that your deployment is working before you build an application on top of it in Lab 02.
+The playground is particularly useful during development. It lets you send prompts to a deployed model, adjust parameters in real time, and observe how changes affect output -- all without writing code. You will use the playground extensively in Lab 1 to verify that your project is set up correctly before you build an application on top of it in Lab 3.
 
-image::ch01/g1-1-foundry-platform-overview.png[Azure AI Foundry Platform Overview]
+image::ch01/g1-1-foundry-platform-overview.png[Microsoft Foundry Platform Overview]
 
 [NOTE]
 ====
-You may encounter references to "Azure OpenAI Service" in older documentation and tutorials. Microsoft has rebranded and consolidated this service under the Azure AI Foundry umbrella. The underlying capabilities are the same, but the portal experience, project structure, and some API endpoints have been updated. If a tutorial references the Azure OpenAI Studio, you can follow along using the Azure AI Foundry portal -- the workflows are equivalent.
+*Platform rename notice:* Microsoft Foundry was formerly called "Azure AI Foundry," and Foundry Tools were formerly called "Azure AI Services." Older documentation, tutorials, and certification study materials may still use those earlier names. Similarly, if a tutorial references the "Azure OpenAI Studio" portal, you can follow the same workflow in the Microsoft Foundry portal -- the underlying capabilities are equivalent. When you encounter the old names in external resources, substitute the current names and continue; the steps are the same.
 ====
+
+=== Preparing a Foundry Project
+
+Before you deploy a model or write a line of application code, you create a **Foundry project**. A project is the organizing container for your work: it holds your deployments, connects to the underlying Foundry Tools resource, stores datasets and evaluation runs, and applies access control. Creating a project is the first thing you do in Lab 1, and getting the setup right at this stage saves you from rework -- and from security and cost surprises -- later.
+
+When you create a project, you make a few foundational decisions:
+
+* **Region.** You choose the Azure region that hosts your project's resources. Region matters because not all models are available everywhere, latency is lower when your resources sit near your users, and some organizations have data-residency requirements that constrain where data may be processed. Check the model catalog for regional availability before you commit.
+* **Resource and connections.** A project connects to a Foundry Tools resource, which is the billable Azure resource that backs your model endpoints. One resource can support multiple projects, which helps teams keep work organized while consolidating billing.
+* **Access and identity.** You decide who -- and what -- can access the project. This is where authentication choices begin, and they have direct consequences for security.
+
+=== Secure Authentication: Keyless Access with Managed Identity
+
+Every call your application makes to a Foundry endpoint must be authenticated. There are two broad approaches, and the choice between them is one of the most consequential security decisions you make at project setup.
+
+The first approach is **API keys**. When you deploy a model, Foundry generates a secret key string. Your application sends that key with every request to prove it is authorized. API keys are simple to use and convenient for quick experiments, which is why most introductory tutorials -- and the first code example in this chapter -- use them. But keys are also a liability: a key is a long-lived secret that grants full access to the resource, it is easy to accidentally commit to source control or paste into a chat message, and rotating a leaked key means updating every application that uses it.
+
+The second approach is **keyless authentication** using **managed identity**. Instead of a static secret, your application authenticates as a trusted Azure identity, and Azure issues a short-lived access token automatically. With managed identity, there is no key to store, leak, or rotate -- the identity is granted permission to the Foundry resource through Azure role-based access control (RBAC), and credentials are managed by the platform. This is the approach Microsoft recommends for production workloads, and it is a recurring theme of the AI-103 "plan and manage" domain.
+
+In Python, the `azure-identity` library provides `DefaultAzureCredential`, which automatically discovers the right credential for your environment -- your signed-in developer account during local development, and a managed identity once the application runs in Azure. You will see how the key-based and keyless patterns differ in the code examples in Section 1.4. Keyless access is the recommended production approach; you should reach for API keys only for short-lived local experiments.
+
+=== Quotas, Cost, and Monitoring
+
+Part of planning a project is understanding its limits and its bill before you hit them in production:
+
+* **Quotas.** Each model deployment has a quota -- a ceiling on tokens per minute or requests per minute. Exceeding the quota results in throttling. You can view and request quota changes in the portal, and you should size quota to your expected peak traffic.
+* **Cost.** Serverless deployments bill per token; provisioned deployments bill hourly for reserved capacity (covered in Section 1.3). Tagging resources and reviewing the cost analysis dashboard helps you attribute spend and catch runaway usage early.
+* **Monitoring.** Foundry's dashboards track usage, latency, error rates, and token consumption over time. Establishing monitoring during setup -- rather than after an incident -- means you have the baselines you need to spot anomalies.
+
+These planning concerns are foundational here; you will return to quotas, cost management, and monitoring in greater depth as you build production-grade solutions later in the course.
 
 == 1.3 Deployment Options for Language Models
 
-Once you have selected a model from the catalog, your next decision is how to deploy it. Azure AI Foundry offers two primary deployment options: serverless and provisioned. Each option represents a different set of tradeoffs among cost, latency, scalability, and management overhead. Understanding these tradeoffs is essential for making a deployment choice that fits your application's requirements.
+Once you have selected a model from the catalog, your next decision is how to deploy it. Microsoft Foundry offers two primary deployment options: serverless and provisioned. Each option represents a different set of tradeoffs among cost, latency, scalability, and management overhead. Understanding these tradeoffs is essential for making a deployment choice that fits your application's requirements.
 
 === Serverless Deployment
 
@@ -122,7 +155,7 @@ To estimate your token costs for a serverless deployment, count the average numb
 
 [IMPORTANT]
 ====
-Not all models are available in all Azure regions, and not all models support both deployment options. Before committing to a model and deployment strategy, check the model card in the Azure AI Foundry catalog for regional availability and supported deployment types. Choosing a model that is not available in your target region will block your deployment.
+Not all models are available in all Azure regions, and not all models support both deployment options. Before committing to a model and deployment strategy, check the model card in the Microsoft Foundry catalog for regional availability and supported deployment types. Choosing a model that is not available in your target region will block your deployment.
 ====
 
 == 1.4 Configuring Chat Completion API Calls
@@ -166,7 +199,7 @@ The system message is your most powerful tool for shaping model behavior without
 
 When writing system messages, be specific and explicit. Vague instructions like "Be helpful" give the model little to work with. Concrete instructions like "Answer questions about our return policy. If the customer asks about something outside return policy, politely redirect them to the appropriate department" produce much more predictable behavior.
 
-You will experiment with system messages in Lab 02 and observe how different instructions change the model's responses to the same user prompts.
+You will experiment with system messages in Lab 3 and observe how different instructions change the model's responses to the same user prompts.
 
 === Parameter Tuning Effects
 
@@ -220,7 +253,7 @@ response = client.chat.completions.create(
 # Extract and print the model's response
 print(response.choices[0].message.content)
 ----
-<1> The endpoint URL from your Azure AI Foundry deployment.
+<1> The endpoint URL from your Microsoft Foundry deployment.
 <2> The deployment name, which corresponds to the model you deployed.
 <3> The system message defines the assistant's role and behavioral constraints.
 <4> The user message contains the customer's inquiry.
@@ -229,13 +262,44 @@ print(response.choices[0].message.content)
 <7> top_p at 1.0 means no nucleus sampling restriction (temperature controls randomness here).
 <8> No frequency penalty -- repetition is unlikely in short, factual responses.
 
+The example above uses an API key, which is fine for a quick local experiment. For production, the recommended approach is **keyless authentication** with managed identity, as introduced in Section 1.2. The change is small: you replace the `api_key` argument with a token provider built from `DefaultAzureCredential`, and you no longer store or transmit a secret.
+
+[source,python]
+----
+import os
+from openai import AzureOpenAI
+from azure.identity import DefaultAzureCredential, get_bearer_token_provider  # <1>
+
+# DefaultAzureCredential discovers your identity automatically:
+# your signed-in dev account locally, a managed identity in Azure.
+token_provider = get_bearer_token_provider(  # <2>
+    DefaultAzureCredential(),
+    "https://cognitiveservices.azure.com/.default"
+)
+
+client = AzureOpenAI(
+    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+    azure_ad_token_provider=token_provider,  # <3>
+    api_version="2024-06-01"
+)
+# The chat.completions.create(...) call is identical to the key-based version.
+----
+<1> Import the credential and token-provider helpers from the `azure-identity` library.
+<2> Build a token provider scoped to the Foundry Tools (Cognitive Services) resource. Azure issues short-lived tokens automatically -- there is no key to manage.
+<3> Pass `azure_ad_token_provider` instead of `api_key`. No secret is stored in code or environment variables.
+
+[NOTE]
+====
+Keyless authentication requires that your identity be granted an appropriate role (such as *Cognitive Services User*) on the Foundry resource through Azure role-based access control. You set this up once at the project level; afterward, both local development and deployed applications authenticate without any secret in your code. This eliminates an entire class of security incidents caused by leaked keys.
+====
+
 == 1.5 Model Selection and Its Downstream Effects
 
 Choosing a model is not just a technical checkbox -- it is a decision that cascades through your entire application. The model you select determines your cost per request, your response latency, the quality and depth of your outputs, and even which deployment options are available to you.
 
 === Model Families and Capability Tiers
 
-The Azure AI Foundry model catalog organizes models into families and capability tiers. At a high level, you will encounter:
+The Microsoft Foundry model catalog organizes models into families and capability tiers. At a high level, you will encounter:
 
 * **Large, highly capable models** (such as GPT-4o and GPT-4.1) that excel at complex reasoning, nuanced language understanding, and multi-step tasks. These models are the most expensive per token and have the highest latency, but they deliver the best output quality for demanding tasks.
 * **Smaller, efficient models** (such as GPT-4o mini and GPT-4.1 mini) that offer good performance at a fraction of the cost. These models are faster and cheaper, making them suitable for high-volume, straightforward tasks like classification, summarization, or simple Q&A.
@@ -275,29 +339,69 @@ Model selection also introduces operational risks that responsible engineering p
 
 **Fallback strategies.** If your primary model endpoint becomes unavailable -- due to regional outages, quota exhaustion, or throttling -- your application needs a plan. Common fallback strategies include deploying a secondary model in a different region, maintaining a serverless endpoint as a backup for a provisioned deployment, or implementing graceful degradation that informs users of temporary limitations rather than failing silently.
 
-== 1.6 Hands-On Connections
+== 1.6 Comparing and Evaluating Models
 
-The concepts in this chapter come to life in two hands-on lab activities. Here is what to watch for in each.
+Section 1.5 made the case that model selection has real consequences for cost, latency, and quality. But how do you actually decide which model is best for your task? Reading model cards tells you what each model claims to do; it does not tell you how a model performs *on your specific prompts and data*. **Model evaluation** closes that gap. Instead of guessing, you measure -- and you let evidence, not marketing, drive the choice. This is exactly the work you do in Lab 2.
 
-=== Lab 01: Choose and Deploy a Language Model
+=== Side-by-Side Comparison in the Catalog
 
-In Lab 01, you will navigate the Azure AI Foundry model catalog and deploy a language model. As you work through the lab, pay attention to the following:
+The Microsoft Foundry portal lets you compare candidate models directly. Starting from the model catalog, you can select two or more models and view their attributes side by side: provider, parameter count (where published), context window size, supported deployment types, regional availability, and published benchmark scores. This comparison view is the right first filter -- it quickly eliminates models that are unavailable in your region, too small for your context needs, or priced outside your budget.
 
-* **Model card details.** When you evaluate models in the catalog, notice the information on each model card: capabilities, pricing, context window size, and regional availability. These are the factors you will use to compare deployment options in the discussion post.
-* **Deployment type selection.** You will deploy using a serverless endpoint. Observe how quickly the deployment becomes available and consider how this experience would differ with a provisioned deployment.
-* **Endpoint verification.** After deployment, you will test the endpoint with a sample prompt. Notice the response time and think about how this latency would affect a user interacting with a real chatbot.
+Benchmark scores published on model cards are useful but limited. A model that tops a general reasoning leaderboard may still underperform on your domain -- summarizing insurance claims, answering questions about your product catalog, or extracting fields from your invoices. That is why catalog comparison is a starting point, not a final answer.
 
-=== Lab 02: Create a Generative AI Chat App
+image::ch01/g1-6-model-evaluation.png[Model Comparison and Evaluation View]
 
-In Lab 02, you will build a chat application that calls the chat completion API. This is where parameter tuning becomes tangible:
+=== Running an Evaluation
+
+To measure how models perform on *your* task, you run an **evaluation** in Foundry. The pattern is consistent regardless of the metric:
+
+. **Assemble a test dataset.** Collect a representative set of inputs -- example prompts -- and, where possible, the expected or "ground truth" outputs. Even a few dozen realistic examples produce far more reliable signal than informal spot-checking.
+. **Select candidate models.** Choose the two or three models that survived your catalog comparison.
+. **Choose evaluation metrics.** Decide what "good" means for your task (see below).
+. **Run and compare.** Foundry runs each model against the dataset and presents the results in a comparison view so you can read the tradeoffs at a glance.
+
+=== Reading Evaluation Metrics
+
+Evaluation output in Foundry generally falls into three buckets, and the best model is rarely the winner in all three:
+
+* **Quality.** How good are the outputs? Quality can be measured automatically -- for example, similarity to ground-truth answers, or scores from "AI-assisted" evaluators that judge relevance, coherence, and groundedness -- and it can be assessed by human reviewers. Higher quality usually correlates with larger, more expensive models.
+* **Latency.** How long does the model take to respond? This is typically reported as average or percentile response time. Latency affects user experience directly: a model that is marginally more accurate but twice as slow may be the wrong choice for an interactive chatbot.
+* **Cost.** What does each request cost? Foundry reports token usage, which you translate into dollars using the model's per-token rate. A high-quality model that costs ten times as much per request may not be justified if a cheaper model meets your quality bar.
+
+The goal is not to find the single "best" model in the abstract -- it is to find the model that best balances quality, latency, and cost *for your requirements*. A high-volume FAQ bot might rationally choose a fast, cheap model that scores slightly lower on quality, while a contract-analysis tool might accept higher cost and latency in exchange for top-tier accuracy. When you run your evaluation in Lab 2, capture the numbers for all three dimensions so you can defend your recommendation with evidence rather than intuition.
+
+== 1.7 Hands-On Connections
+
+The concepts in this chapter come to life across three hands-on lab activities. Here is what to watch for in each.
+
+=== Lab 1: Prepare for an AI Development Project
+
+In Lab 1, you will create a Microsoft Foundry project and set it up for secure development. As you work through the lab, pay attention to the following:
+
+* **Region and resource choices.** Notice how the region you select constrains which models are available and where your data is processed. Consider how a data-residency requirement would change your choice.
+* **Keyless authentication.** You will configure access using managed identity rather than copying an API key into your code. Observe how `DefaultAzureCredential` lets the same code authenticate locally and in Azure without a stored secret.
+* **Quota and cost visibility.** Locate where the portal reports quotas and projected cost. These are the guardrails you will rely on as your project grows.
+
+=== Lab 2: Explore Models and Evaluate Performance
+
+In Lab 2, you will compare candidate models and run an evaluation. This is where the ideas in Section 1.6 become concrete:
+
+* **Side-by-side comparison.** Use the catalog comparison view to filter candidates by context window, deployment support, and regional availability before you evaluate.
+* **Evaluation metrics.** Run an evaluation against a test dataset and read the quality, latency, and cost results. Notice which model "wins" on each dimension -- and that no single model usually wins on all three.
+* **Justifying a choice.** Record the numbers. The evidence you gather here is exactly what a solutions architect uses to defend a model recommendation.
+
+=== Lab 3: Create a Generative AI Chat App
+
+In Lab 3, you will build a chat application that calls the chat completion API. This is where parameter tuning becomes tangible:
 
 * **System message impact.** Experiment with different system messages and observe how they change the model's behavior. Try giving the model a specific persona and then removing the system message entirely -- the difference is often dramatic.
-* **Temperature effects.** The lab asks you to try multiple temperature values. Run the same prompt at temperature 0.0 and again at 0.8 or higher. Compare the responses for consistency, creativity, and accuracy.
-* **max_tokens behavior.** Try setting max_tokens to a very low value (like 50) and observe how the model truncates its response. Then increase it and notice the difference in response completeness and cost implications.
+* **Temperature effects.** Run the same prompt at temperature 0.0 and again at 0.8 or higher. Compare the responses for consistency, creativity, and accuracy.
+* **max_tokens behavior.** Set max_tokens to a very low value (like 50) and observe how the model truncates its response. Then increase it and notice the difference in response completeness and cost implications.
+* **Secure access.** Authenticate the app using the keyless pattern you set up in Lab 1, confirming that no API key is stored in your code.
 
 Document your observations carefully. Your screenshots and notes from these labs provide the evidence you will need for the discussion post and weekly reflection.
 
-== 1.7 Assessment Preparation
+== 1.8 Assessment Preparation
 
 This week's discussion post asks you to step into the role of a solutions architect advising a company on deploying a generative AI feature. To prepare effectively, consider the following.
 
@@ -305,13 +409,13 @@ This week's discussion post asks you to step into the role of a solutions archit
 
 **Build your argument.** Your post asks you to recommend a deployment option and a model size category. The strongest posts will not simply state a choice but will explain _why_ that choice fits the scenario. Connect your recommendation to specific factors: How does the pricing model align with the company's traffic pattern? How does the deployment option address their latency requirements?
 
-**Use evidence from the chapter and labs.** The rubric rewards integration of concepts from readings and labs. Reference specific details -- throughput unit behavior, token pricing models, parameter configurations you tested -- rather than making general statements. If you observed something relevant during Lab 01 or Lab 02, cite that experience.
+**Use evidence from the chapter and labs.** The rubric rewards integration of concepts from readings and labs. Reference specific details -- throughput unit behavior, token pricing models, evaluation metrics you recorded, parameter configurations you tested -- rather than making general statements. If you observed something relevant during Lab 1, Lab 2, or Lab 3, cite that experience.
 
 **Identify a genuine risk.** The discussion prompt asks you to identify one risk and a mitigation strategy. Think beyond the obvious. Consider what happens if traffic grows beyond projections, if the chosen model is deprecated, or if the deployment option you recommended does not perform as expected under edge conditions.
 
 **Structure your post clearly.** A well-organized post with clear paragraphs, one point per paragraph, is easier for your classmates to engage with -- and engagement quality affects your peer reply score.
 
-== 1.8 Key Terms
+== 1.9 Key Terms
 
 serverless deployment:: A deployment model in which the cloud provider manages all infrastructure automatically. You pay only for the tokens consumed, with no reserved capacity. Ideal for variable or unpredictable workloads.
 
@@ -335,7 +439,13 @@ frequency_penalty:: A parameter (-2.0 to 2.0) that penalizes the model for reusi
 
 context window:: The maximum number of tokens a model can process in a single request, including both input and output. Determines how much conversation history or document content the model can consider.
 
-model catalog:: A searchable directory within Azure AI Foundry that lists available language models from multiple providers, with model cards showing capabilities, pricing, and regional availability.
+model catalog:: A searchable directory within Microsoft Foundry that lists available language models from multiple providers, with model cards showing capabilities, pricing, and regional availability.
+
+managed identity:: An Azure identity, managed by the platform, that an application uses to authenticate to Azure resources without storing any credentials. Access is granted through role-based access control (RBAC), and the platform issues and rotates tokens automatically.
+
+keyless authentication:: An authentication approach that uses a managed identity and short-lived, automatically issued tokens instead of a static API key. Eliminates the need to store, transmit, or rotate a long-lived secret, and is the recommended approach for production workloads.
+
+model evaluation:: The process of measuring how candidate models perform on a representative test dataset, comparing them across quality, latency, and cost so that a model choice can be justified with evidence rather than intuition.
 
 latency:: The time elapsed between sending a request to a model endpoint and receiving the response. Affected by model size, deployment type, network conditions, and request complexity.
 
@@ -343,10 +453,12 @@ inference:: The process of generating output from a trained model given an input
 
 API endpoint:: A URL that serves as the access point for your deployed model. Your application sends HTTP requests to this endpoint to invoke the chat completion API and receive responses.
 
-== 1.9 Chapter Summary
+== 1.10 Chapter Summary
 
-This chapter established the foundational concepts you need to deploy and configure language models in Azure AI Foundry. You learned that the Azure AI Foundry platform provides a model catalog for discovery, deployment tools for getting models into production, and monitoring capabilities for tracking performance. You examined two deployment options -- serverless (pay-per-token, auto-scaling, variable latency) and provisioned (reserved throughput units, predictable latency, fixed cost) -- and developed a framework for choosing between them based on traffic patterns, latency requirements, and budget models.
+This chapter established the foundational concepts you need to plan, deploy, configure, and evaluate language models in Microsoft Foundry. You learned that the Microsoft Foundry platform provides a model catalog for discovery, deployment tools for getting models into production, and monitoring capabilities for tracking performance. You saw how to prepare a Foundry project -- choosing a region and resource -- and why **keyless authentication** with **managed identity** is the recommended, secure alternative to long-lived API keys, along with the roles that quotas, cost, and monitoring play in planning a project responsibly.
 
-You explored the chat completion API in detail, learning how system messages, user messages, and assistant messages form a structured conversation, and how parameters like temperature, max_tokens, top_p, and frequency_penalty shape the model's output. Finally, you considered how model selection decisions -- the choice of model family, capability tier, and context window size -- ripple through application performance, cost, and user experience.
+You examined two deployment options -- serverless (pay-per-token, auto-scaling, variable latency) and provisioned (reserved throughput units, predictable latency, fixed cost) -- and developed a framework for choosing between them based on traffic patterns, latency requirements, and budget models. You explored the chat completion API in detail, learning how system messages, user messages, and assistant messages form a structured conversation, and how parameters like temperature, max_tokens, top_p, and frequency_penalty shape the model's output -- in both key-based and keyless authentication patterns.
 
-These concepts form the platform on which the rest of the course builds. In xref:ch02-rag-and-content-safety.adoc[Chapter 2], you will extend your deployed models with Retrieval-Augmented Generation (RAG) to ground responses in your own data, and you will configure content safety filters to ensure that your AI applications behave responsibly.
+Finally, you moved from intuition to evidence: you learned how to compare candidate models side by side in the catalog and run a **model evaluation** that measures quality, latency, and cost on your own test data, so you can defend a model choice rather than guess at one. You also considered how model selection decisions -- the choice of model family, capability tier, and context window size -- ripple through application performance, cost, and user experience.
+
+These concepts form the platform on which the rest of the course builds. In xref:ch02-rag-and-content-safety.adoc[Chapter 2], "Grounding with RAG & Responsible AI," you will extend your deployed models with Retrieval-Augmented Generation (RAG) to ground responses in your own data, and you will configure content safety filters to ensure that your AI applications behave responsibly.

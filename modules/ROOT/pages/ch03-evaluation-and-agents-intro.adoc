@@ -1,199 +1,49 @@
-= Chapter 3: Model Evaluation & Introduction to Agents
+= Chapter 3: Building AI Agents: Tools & Functions
 
 == Learning Objectives
 
 By the end of this chapter, you will be able to:
 
-. Apply standard evaluation metrics (groundedness, relevance, coherence, fluency) to assess generative AI model outputs.
-. Distinguish between agent-based architectures and standard chat completion patterns based on task requirements.
-. Interpret evaluation results to recommend model or prompt adjustments.
+. Explain the agent paradigm, including the agent execution loop and the decision of when an agent architecture is warranted over a standard chat completion.
+. Build an AI agent using the Foundry Agent Service, first in the Microsoft Foundry portal and then in VS Code with the SDK.
+. Define a custom function tool -- including its name, description, and JSON parameter schema -- and attach it to an agent.
+. Handle tool-call errors so that an agent fails explicitly rather than fabricating results.
 
-== 3.1 Introduction: How Do You Know If It's Working?
+== 3.1 Introduction: From Generating Text to Taking Action
 
-Your product team has been working for weeks on a customer support chatbot powered by Azure OpenAI. The system uses a RAG pipeline (the architecture you studied in xref:ch02-rag-and-content-safety.adoc[Chapter 2]) to ground responses in your company's knowledge base. The deployment goes live on a Monday morning. By Wednesday, support tickets start rolling in. Customers are complaining that the bot's answers are "off." Some say it gives "weird responses." Others report that the bot "doesn't answer my question." One user writes, simply, "It seems broken."
+So far in this course, you have worked with language models in a single mode: you send a prompt, and the model returns text. Whether you crafted system messages in xref:ch01-generative-ai-foundations.adoc[Chapter 1] or built RAG pipelines and applied content safety in xref:ch02-rag-and-content-safety.adoc[Chapter 2], the fundamental interaction was always the same -- text in, text out. You also learned, in those chapters, how to *measure* output quality: model evaluation metrics in Chapter 1 and the evaluators and responsible-AI safety layers in Chapter 2.
 
-Your team huddles around a conference table. The product manager pulls up a dozen conversation transcripts. Everyone reads through them and offers opinions. "This response looks fine to me," says one engineer. "I think this one is wrong, but I'm not sure why," says another. The designer points to a response and says, "This sounds robotic." The support lead disagrees: "I think it sounds fine -- the problem is that it's answering a different question than the customer asked."
+This chapter introduces a fundamentally different paradigm. Instead of only generating text, you will build systems that take actions in the world -- looking up live data, calling APIs, and running custom functions. These systems are called **AI agents**, and they are the foundation of the next three chapters of this course.
 
-This is the situation every team encounters when they move from building a generative AI system to operating one. During development, you test a handful of prompts and eyeball the responses. The outputs look reasonable, so you ship. But "looks reasonable" is not a measurement. It is a subjective impression that varies from person to person, changes depending on how carefully you read, and provides no basis for systematic improvement.
+Consider a user who asks a customer support assistant, "Cancel my subscription and send me a confirmation email." A standard chat completion model can generate a response like, "I'd be happy to help you cancel your subscription. Here's what you need to do..." -- but it cannot actually cancel the subscription or send the email. It can describe an action but cannot perform it. An agent closes that gap: it can call a `cancel_subscription` function that interacts with the billing system, then a `send_email` function, and finally report what it actually did.
 
-The core problem is that generative AI outputs are open-ended text. Unlike a classification model that produces a label you can check against a ground truth, or a regression model that produces a number you can compare to an actual value, a text generation model produces paragraphs of natural language that can be wrong in multiple independent ways. A response can be factually incorrect. It can be factually correct but irrelevant to the question asked. It can be relevant and correct but poorly organized and hard to follow. It can be well-organized and correct but stilted and unnatural. Each of these failure modes is distinct, and each requires a different fix.
+This is the first chapter of a three-chapter agent arc. In this chapter, you will learn the agent paradigm and build agents with the **Foundry Agent Service**, attaching **custom function tools** so your agent can take action. In xref:ch04-agent-development.adoc[Chapter 4], you will extend agents with external knowledge and protocols (the Model Context Protocol and Foundry IQ). In Chapter 5, you will move to agent frameworks and multi-agent orchestration.
 
-This chapter introduces the tools you need to move beyond subjective evaluation. In **Section 3.2**, you will learn four standard metrics -- groundedness, relevance, coherence, and fluency -- that decompose "Is this response good?" into measurable dimensions. In **Section 3.3**, you will learn how to interpret evaluation results and translate them into concrete improvements. Then the chapter shifts direction: in **Sections 3.4 and 3.5**, you will discover that text generation is only part of what modern AI systems can do. You will learn about **AI agents** -- systems that go beyond generating text to taking actions in the world -- and how to decide when an agent architecture is warranted. Finally, **Section 3.6** connects evaluation back to agents, and **Sections 3.7 and 3.8** prepare you for this week's labs and assessments.
-
-== 3.2 Standard Evaluation Metrics for Generative AI
-
-When you evaluate a generative AI model's output, you need a shared vocabulary that breaks "good" and "bad" into specific, measurable dimensions. Azure AI Foundry provides four standard metrics for evaluating text generation quality: **groundedness**, **relevance**, **coherence**, and **fluency**. Each metric captures a different aspect of response quality, and together they provide a comprehensive picture of how well your model is performing.
-
-// Graphic G3.1: Evaluation metrics scorecard showing the four metrics with sample scores
-image::ch03/g3-1-evaluation-scorecard.png[Evaluation Metrics Scorecard]
-
-=== 3.2.1 Groundedness: Does the Response Stay Faithful to Source Documents?
-
-**Groundedness** measures how well a model's response is supported by the source documents provided to it. In a RAG pipeline, this means checking whether every claim in the model's output can be traced back to the retrieved chunks that were included in the prompt. A perfectly grounded response contains no information beyond what the source material provides. An ungrounded response includes fabricated details, unsupported claims, or information drawn from the model's training data rather than the provided context.
-
-This metric is directly connected to the concept of grounding you studied in xref:ch02-rag-and-content-safety.adoc[Chapter 2]. There, you learned how RAG pipelines inject retrieved documents into the prompt to constrain the model's knowledge boundary. Groundedness evaluation measures how effectively that constraint actually works in practice. You might have a well-designed RAG pipeline that retrieves excellent source material, but if the model ignores that material and generates from its own training knowledge, your grounding has failed -- and the groundedness metric will reveal that failure.
-
-Groundedness is typically scored on a scale from 1 to 5, where 1 indicates that the response is entirely unsupported by the source material and 5 indicates that every claim in the response is directly traceable to the provided context. A score of 3 might indicate that some claims are grounded while others appear to come from outside the source material.
-
-Consider an example. Your knowledge base contains a product FAQ that states: "Our premium plan includes 50 GB of storage and priority email support." A user asks, "What does the premium plan include?" If the model responds, "The premium plan includes 50 GB of storage, priority email support, and 24/7 phone support," the response is partially grounded. The storage and email support claims are in the source material, but "24/7 phone support" is fabricated. The groundedness score would reflect this partial failure.
-
-=== 3.2.2 Relevance: Does the Response Actually Address the User's Question?
-
-**Relevance** measures how well the model's response addresses the specific question or task the user presented. A relevant response directly engages with the user's intent and provides information that helps answer their question. An irrelevant response may be factually accurate and well-written but fails to address what the user actually asked.
-
-Relevance failures are surprisingly common in production systems. The model might latch onto a keyword in the user's question and generate a response about a tangentially related topic. A user asks, "How do I cancel my subscription?" and the model responds with a detailed explanation of subscription tiers and pricing -- accurate information, but not what the user wanted. The response is grounded (if the pricing information comes from the source material) and coherent (it is well-organized), but it is not relevant to the user's actual need.
-
-Relevance is also scored on a 1-to-5 scale. A score of 1 means the response has no connection to the user's question. A score of 5 means the response directly and completely addresses the user's question. Intermediate scores reflect partial relevance -- the response addresses part of the question but misses key aspects, or it addresses the right topic but at the wrong level of detail.
-
-Diagnosing relevance problems often points to issues in the retrieval stage of your RAG pipeline. If the retrieved chunks are not relevant to the user's query, the model has no relevant context to work from and is more likely to generate tangential responses. Poor relevance scores should prompt you to examine your retrieval configuration, including your chunking strategy, embedding model, and search approach.
-
-=== 3.2.3 Coherence: Is the Response Logically Organized and Internally Consistent?
-
-**Coherence** measures the logical flow and organizational quality of the model's response. A coherent response presents information in a logical sequence, with ideas that connect naturally to each other and a structure that is easy to follow. An incoherent response may jump between topics, contradict itself, or present information in a confusing order.
-
-Coherence captures the structural quality of the response independent of its factual accuracy. A response can be highly coherent but completely fabricated -- it reads beautifully and follows a clear logical structure, but the content is made up. Conversely, a response can be factually accurate but poorly organized, with relevant information scattered across paragraphs in no particular order.
-
-Coherence problems often emerge when the model is working with multiple retrieved chunks that address different aspects of a question. The model may struggle to synthesize information from several sources into a unified, well-structured response. Instead, it may produce a response that reads like a concatenation of separate paragraphs, each addressing a different chunk, with no transitions or unifying thread.
-
-On the 1-to-5 scale, a score of 1 indicates a response that is confusing, contradictory, or disorganized. A score of 5 indicates a response with clear structure, logical flow, and smooth transitions. Coherence issues typically point to problems with the model's ability to synthesize information, which may be addressed through prompt engineering -- for example, by instructing the model to organize its response with a specific structure.
-
-=== 3.2.4 Fluency: Is the Response Grammatically Correct and Natural-Sounding?
-
-**Fluency** measures the linguistic quality of the model's response -- grammar, word choice, sentence structure, and naturalness. A fluent response reads as if a competent human wrote it. A non-fluent response contains grammatical errors, awkward phrasing, unnatural word choices, or stilted constructions that make it difficult or unpleasant to read.
-
-Of the four metrics, fluency is usually the strongest for modern large language models. These models are trained on vast corpora of well-written text and are generally excellent at producing grammatically correct, natural-sounding prose. When fluency scores are low, the cause is often one of the following: the model is being asked to generate text in a language or domain where its training data is sparse, the temperature setting is too high (producing more random and sometimes less coherent word choices), or the model is struggling to incorporate technical terminology from retrieved chunks into natural-sounding sentences.
-
-Fluency is scored from 1 to 5, where 1 represents text with pervasive grammatical errors or unnatural phrasing and 5 represents text that is indistinguishable from competent human writing. Because modern LLMs tend to score high on fluency, a low fluency score is often a signal of an unusual underlying problem worth investigating.
-
-=== 3.2.5 How the Four Metrics Relate to Each Other
-
-The four metrics are designed to be independent dimensions, but in practice they interact. Understanding these interactions helps you interpret evaluation results more effectively.
-
-Groundedness and relevance are the most closely linked. A response cannot be truly relevant if it is not grounded -- if the model is fabricating information, it is not actually answering the user's question from reliable data, even if the fabricated answer happens to address the right topic. However, a response can be grounded but not relevant: it can faithfully represent information from the source material that does not address the user's question.
-
-Coherence and fluency are also related but distinct. Fluency operates at the sentence level -- is each sentence well-constructed? Coherence operates at the response level -- do the sentences and paragraphs work together to form a logical whole? A response can be fluent sentence by sentence but incoherent overall, jumping between unrelated topics in perfectly grammatical prose.
-
-The most dangerous combination is high fluency and coherence with low groundedness. This is the "confident hallucination" pattern: the model produces a response that reads beautifully, is well-organized, and sounds authoritative -- but the content is fabricated. Users are most likely to trust and act on responses that sound good, which makes ungrounded but fluent responses more harmful than obviously broken ones.
-
-[IMPORTANT]
+[NOTE]
 ====
-A fluent, coherent response can still be dangerously wrong -- groundedness is the safety-critical metric. A model that produces polished, well-organized text filled with fabricated claims is more dangerous than one that produces awkward but accurate text. Always prioritize groundedness over surface-level quality metrics when evaluating responses in production systems.
+*Where did evaluation go?* In earlier drafts of this course, model and output evaluation lived here. That material now appears earlier, where it belongs: model evaluation in xref:ch01-generative-ai-foundations.adoc[Chapter 1], and evaluators and responsible-AI safety layers in xref:ch02-rag-and-content-safety.adoc[Chapter 2, Section 2.4.8]. When you build agents in this chapter, remember that those same evaluation disciplines apply to an agent's final response.
 ====
 
-[TIP]
-====
-When evaluating, check groundedness first; if a response is not grounded, the other metrics are less meaningful. A beautifully written, perfectly relevant, logically organized response that is based on fabricated information is still a failed response. Establish groundedness as your gating metric: only invest time evaluating relevance, coherence, and fluency once you have confirmed that the response is faithful to its source material.
-====
+Here is the roadmap for this chapter. In **Section 3.2**, you will learn what makes an agent different from chat completion and how the agent execution loop works. In **Section 3.3**, you will learn the decision framework for choosing between an agent and standard chat completion. In **Section 3.4**, you will build an agent with the Foundry Agent Service -- first in the portal, then in VS Code with the SDK (Lab 6). In **Section 3.5**, you will learn the anatomy of a tool definition and the tool-call lifecycle, then define a custom function tool and attach it to an agent (Lab 7). **Section 3.6** covers error handling for tool calls. Finally, **Sections 3.7 and 3.8** prepare you for this week's labs and assessments.
 
-== 3.3 Interpreting Evaluation Results
+== 3.2 The Agent Paradigm
 
-Knowing what the four metrics measure is the first step. The next step is learning to read evaluation results systematically, diagnose the root causes of weak scores, and translate those diagnoses into specific improvements.
+=== 3.2.1 The Limitation of Standard Chat Completion: Text In, Text Out
 
-=== 3.3.1 Reading an Evaluation Scorecard: What Patterns to Look For
-
-When you run an evaluation across a set of test queries, you receive a scorecard -- a collection of metric scores for each query-response pair. Rather than examining individual scores in isolation, look for patterns across the full set of results.
-
-// Graphic G3.2: Metric-to-problem diagnostic flowchart showing which low scores point to which system problems
-image::ch03/g3-2-metric-diagnostic-flowchart.png[Metric-to-Problem Diagnostic Flowchart]
-
-**Consistently low scores in a single metric** suggest a systemic problem related to that dimension. If groundedness is consistently low across all test queries, the problem is likely in your grounding strategy -- perhaps the system message does not sufficiently instruct the model to stay within the source material, or the model is overriding the grounding instruction with its own training knowledge. If relevance is consistently low, the retrieval stage may be returning poorly matched chunks.
-
-**Low scores on specific queries but not others** suggest that the problem is query-dependent. Some queries may be well-served by your current chunking and retrieval configuration while others fall through the gaps. These query-specific failures often reveal blind spots in your knowledge base coverage or weaknesses in your embedding model's ability to match certain types of queries to relevant content.
-
-**Correlated drops across multiple metrics** often point to a single upstream problem. If a particular query produces low scores in groundedness, relevance, and coherence simultaneously, the most likely cause is a retrieval failure: the system retrieved irrelevant chunks, and the model struggled to produce a good response from poor source material. When the source material is wrong, everything downstream suffers.
-
-=== 3.3.2 Diagnosing Weak Scores: Which Metric Points to Which Problem
-
-Each metric, when weak, points to a different part of your system that needs attention:
-
-**Low groundedness** points to the grounding stage or the model itself. Check whether the system message includes clear instructions to answer only from provided sources. Verify that the model is not overriding those instructions. Consider lowering the temperature to reduce creative generation. If the model is grounded on most queries but not certain types, examine whether those query types are adequately covered in your knowledge base.
-
-**Low relevance** points to the retrieval stage. Are the retrieved chunks actually relevant to the user's query? Check your embedding model, your chunking strategy, and your top-k parameter. Consider adding re-ranking to improve retrieval precision. Also check whether the user's query is ambiguous -- if the query is vague, even perfect retrieval may return broadly related but not precisely targeted chunks.
-
-**Low coherence** points to the generation stage and prompt design. The model may need clearer instructions about how to structure its response. Consider adding formatting guidance to the system message, such as "Organize your response into clear paragraphs" or "Address each part of the question in order." If the model is receiving many retrieved chunks, it may be struggling to synthesize them -- consider reducing the number of retrieved chunks or using a model with stronger reasoning capabilities.
-
-**Low fluency** points to model selection, temperature settings, or domain mismatch. If the model is producing awkward text, try a different model or adjust the temperature. If the domain involves specialized terminology, ensure the model has been exposed to similar content or provide terminology guidance in the system message.
-
-=== 3.3.3 Recommending Adjustments: Prompt Changes, Parameter Tuning, Pipeline Modifications
-
-Once you have diagnosed the problem, you can recommend specific adjustments:
-
-**Prompt changes** address groundedness and coherence issues. Strengthening the grounding instruction ("Answer ONLY based on the provided documents. If the documents do not contain the answer, say 'I don't have that information.'") can improve groundedness. Adding structural instructions can improve coherence.
-
-**Parameter tuning** addresses fluency and groundedness. Lowering the temperature reduces randomness and tends to improve both fluency and groundedness, at the cost of more repetitive responses. Adjusting the top-k parameter affects how much context the model receives, which impacts all four metrics.
-
-**Pipeline modifications** address relevance and systemic quality issues. Changing your chunking strategy, switching to hybrid search, adding a re-ranking step, or expanding your knowledge base are all pipeline-level changes that can improve evaluation scores across the board.
-
-The following JSON payload shows what evaluation results look like in practice. Study the annotations to understand what each score reveals:
-
-[source,json]
-----
-{
-  "evaluation_id": "eval-20260305-customer-support",
-  "model": "gpt-4o",
-  "dataset_size": 50,
-  "aggregate_scores": {
-    "groundedness": 3.8,
-    "relevance": 4.2,
-    "coherence": 4.5,
-    "fluency": 4.7
-  },
-  "sample_results": [
-    {
-      "query_id": "q-012",
-      "query": "How do I reset my password?",
-      "groundedness": 5.0,
-      "relevance": 5.0,
-      "coherence": 5.0,
-      "fluency": 5.0,
-      "notes": "Well-covered topic in knowledge base; strong retrieval match"
-    },
-    {
-      "query_id": "q-027",
-      "query": "What is your refund policy for annual plans?",
-      "groundedness": 2.0,
-      "relevance": 3.0,
-      "coherence": 4.0,
-      "fluency": 4.5,
-      "notes": "Knowledge base lacks refund details for annual plans; model fabricated a policy"
-    },
-    {
-      "query_id": "q-041",
-      "query": "Can I transfer my license to another user?",
-      "groundedness": 4.0,
-      "relevance": 2.5,
-      "coherence": 3.5,
-      "fluency": 4.5,
-      "notes": "Retrieved chunks about licensing but not about transfers; response discussed licensing in general"
-    }
-  ]
-}
-----
-
-Notice the patterns in this payload. The aggregate groundedness score of 3.8 is the weakest metric, suggesting a systemic grounding issue. Query q-027 shows the classic knowledge gap pattern: low groundedness because the knowledge base lacks the needed information, leading the model to fabricate. Query q-041 shows a retrieval precision problem: the system retrieved related-but-not-targeted chunks, resulting in low relevance. The high fluency scores across the board confirm that fluency is rarely the bottleneck for modern LLMs -- the problems lie elsewhere in the pipeline.
-
-== 3.4 From Text Generation to Action: Introduction to AI Agents
-
-So far in this course, you have worked with language models in a single mode: you send a prompt, and the model returns text. Whether you are crafting system messages, configuring RAG pipelines, or evaluating response quality, the fundamental interaction is the same -- text in, text out. This section introduces a fundamentally different paradigm: AI systems that do not just generate text but take actions.
-
-=== 3.4.1 The Limitation of Standard Chat Completion: Text In, Text Out
-
-Standard **chat completion** is the interaction pattern you have been using since xref:ch01-generative-ai-foundations.adoc[Chapter 1]. You send a sequence of messages (system message, user message, optionally assistant messages for conversation history), and the model returns a text response. The model's entire capability is constrained to generating the next sequence of tokens based on its input.
+Standard **chat completion** is the interaction pattern you have used since xref:ch01-generative-ai-foundations.adoc[Chapter 1]. You send a sequence of messages (system message, user message, optionally assistant messages for conversation history), and the model returns a text response. The model's entire capability is constrained to generating the next sequence of tokens based on its input.
 
 This pattern is powerful for many tasks: answering questions, summarizing documents, translating text, writing content, and explaining concepts. But it has a fundamental limitation: the model cannot interact with the outside world. It cannot look up current information, query a database, send an email, create a calendar event, or execute code. It can only generate text that _describes_ these actions.
 
-Consider a user who asks a customer support bot, "Cancel my subscription and send me a confirmation email." A standard chat completion model can generate a response like, "I'd be happy to help you cancel your subscription. Here's what you need to do..." -- but it cannot actually cancel the subscription or send the email. It can describe the action but cannot perform it.
+=== 3.2.2 What Makes an Agent Different: The Ability to Take Actions Through Tool Calling
 
-=== 3.4.2 What Makes an Agent Different: The Ability to Take Actions Through Tool Calling
-
-An **AI agent** is a system built on top of a language model that can take actions in the world through **tool calling** (also called function calling). Instead of only generating text, the model can decide that a situation requires an action -- looking up data in a database, calling an API, running a calculation -- and invoke a predefined tool to perform that action. The model then receives the result of the tool call and incorporates it into its reasoning before generating the next response.
+An **AI agent** is a system built on top of a language model that can take actions in the world through **tool calling** (also called function calling). Instead of only generating text, the model can decide that a situation requires an action -- looking up data in a database, calling an API, running a calculation -- and invoke a predefined **tool** to perform that action. The model then receives the result of the tool call and incorporates it into its reasoning before generating the next response.
 
 The key distinction is that an agent does not just describe what should happen -- it makes it happen. When the user says "Cancel my subscription," an agent can call a `cancel_subscription` tool that actually interacts with the billing system, then call a `send_email` tool to send the confirmation, and finally generate a text response confirming what was done.
 
 // Graphic G3.3: Agent execution loop showing the cycle of receive task, reason, select tool, execute, observe, repeat
-image::ch03/g3-3-agent-execution-loop.png[Agent Execution Loop]
+image::ch03/g3-1-agent-execution-loop.png[Agent Execution Loop]
 
-=== 3.4.3 The Agent Execution Loop: Receive Task, Reason, Select Tool, Execute, Observe, Repeat
+=== 3.2.3 The Agent Execution Loop: Receive Task, Reason, Select Tool, Execute, Observe, Repeat
 
 Agents operate through an iterative **execution loop** that distinguishes them from one-shot text generation:
 
@@ -206,31 +56,31 @@ Agents operate through an iterative **execution loop** that distinguishes them f
 
 This loop can execute multiple iterations for a single user request. A complex task like "Find the three most recent orders for customer 12345, check whether any are eligible for a refund, and process the refund for any eligible orders" might require the agent to call a `get_orders` tool, then a `check_refund_eligibility` tool for each order, then a `process_refund` tool for eligible orders -- each iteration building on the results of the previous one.
 
-=== 3.4.4 Components of an Agent: System Prompt, Tool Definitions, Execution Loop, Memory
+=== 3.2.4 Components of an Agent: Instructions, Tools, Thread, Execution Loop
 
-An AI agent is composed of four key components:
+An AI agent is composed of a few key components. In the Foundry Agent Service (which you will use in Section 3.4), these map directly to the objects you create:
 
-**System prompt.** The system prompt defines the agent's role, capabilities, constraints, and behavioral guidelines. For an agent, the system prompt is typically more detailed than for a standard chat completion because it must describe not just how to communicate but when and how to use tools. It might include instructions like "When a user asks to cancel a subscription, use the cancel_subscription tool rather than describing the cancellation process."
+**Instructions.** The agent's **instructions** define its role, goal, capabilities, constraints, and behavioral guidelines -- the agent equivalent of a system prompt. For an agent, instructions are typically more detailed than a plain chat system message because they must describe not just how to communicate but when and how to use tools. They might include guidance like "When a user asks to cancel a subscription, use the cancel_subscription tool rather than describing the cancellation process."
 
-**Tool definitions.** Each tool available to the agent is described in a structured format that includes the tool's name, a description of what it does, and the parameters it accepts (with types and descriptions). The model uses these definitions to understand what each tool can do and how to call it correctly. In Azure OpenAI, tool definitions are passed as part of the API request in a standardized JSON schema format.
+**Tools.** Each tool available to the agent is described in a structured format that includes the tool's name, a description of what it does, and the parameters it accepts (with types and descriptions). The model uses these definitions to understand what each tool can do and how to call it correctly. You will examine the anatomy of a tool definition in detail in Section 3.5.
 
-**Execution loop.** The loop described in Section 3.4.3 is the runtime engine that orchestrates the interaction between the model's reasoning and the tool executions. The execution loop manages the cycle of model inference, tool dispatch, result capture, and context update.
+**Thread.** An agent runs over a conversation **thread** -- the ordered sequence of messages, tool calls, and tool results that make up a single interaction. The thread is the agent's short-term memory: each tool call and its result are added to the thread so the model can reference earlier steps as the loop iterates.
 
-**Memory.** Agents need to maintain context across multiple steps within a single task (short-term memory) and potentially across multiple interactions (long-term memory). Short-term memory is typically implemented through the conversation history -- each tool call and its result are added to the message sequence so the model can reference previous steps. Long-term memory might involve storing conversation summaries or user preferences in an external store.
+**Execution loop.** The loop described in Section 3.2.3 is the runtime engine that orchestrates the interaction between the model's reasoning and the tool executions. With the Foundry Agent Service, the service manages much of this loop for you when you start a *run* over a thread, but it is essential to understand what is happening underneath.
 
 // Graphic G3.4: Agent vs. chat completion comparison showing the components and capabilities of each
-image::ch03/g3-4-agent-vs-chat-comparison.png[Agent vs. Chat Completion Comparison]
+image::ch03/g3-2-agent-vs-chat-comparison.png[Agent vs. Chat Completion Comparison]
 
 [NOTE]
 ====
-Agents are not a separate product -- they are a pattern built on top of chat completion with tool calling enabled. Azure OpenAI's chat completion API supports tool calling natively. When you define tools in your API request, the model can choose to respond with a tool call instead of (or in addition to) a text message. The "agent" is the application code you write around this capability: the execution loop, the tool implementations, and the memory management. There is no separate "agent API" -- agents are an architectural pattern that uses the same models and APIs you have already been working with.
+An agent is not magic -- it is a pattern built on top of a language model with tool calling enabled. The model never executes anything itself; it only _proposes_ tool calls by returning structured data. The "agent" is the combination of instructions, registered tools, the thread that holds conversation state, and the execution loop that runs the propose-execute-observe cycle. The Foundry Agent Service packages these pieces into managed objects so you do not have to hand-build the loop, but the underlying mechanics are the same ones you will trace in Sections 3.4 and 3.5.
 ====
 
-== 3.5 When to Use Agents vs. Standard Chat Completion
+== 3.3 When to Use Agents vs. Standard Chat Completion
 
 Understanding the agent pattern is one thing; knowing when to apply it is another. Not every AI application needs an agent, and using an agent when standard chat completion would suffice adds unnecessary complexity.
 
-=== 3.5.1 Tasks Suited to Standard Chat Completion
+=== 3.3.1 Tasks Suited to Standard Chat Completion
 
 Standard chat completion is the right choice when the task can be fully accomplished through text generation alone. These tasks share a common characteristic: the model has everything it needs in the prompt (or in its training data) and does not need to interact with external systems.
 
@@ -241,7 +91,7 @@ Examples include:
 * **Text transformation.** Translation, reformatting, style adjustment, tone changes. The input contains everything the model needs.
 * **Analysis and explanation.** Explaining a concept, analyzing a piece of code, interpreting a data pattern described in the prompt. These are reasoning tasks that produce text output.
 
-=== 3.5.2 Tasks Suited to Agent Architectures
+=== 3.3.2 Tasks Suited to Agent Architectures
 
 Agent architectures are warranted when the task requires the model to interact with external systems, access real-time data, or perform actions that go beyond text generation.
 
@@ -252,12 +102,12 @@ Examples include:
 * **System actions.** "Schedule a meeting with my team for next Tuesday at 2 PM" requires interacting with a calendar API to create an actual event.
 * **Dynamic research.** "Find all open issues assigned to me, summarize them, and draft a status update email" requires querying an issue tracker, synthesizing the results, and potentially drafting content based on live data.
 
-=== 3.5.3 The Decision Framework: Does the Task Require External Data or Actions Beyond Text Generation?
+=== 3.3.3 The Decision Framework: Does the Task Require External Data or Actions Beyond Text Generation?
 
 The fundamental question for deciding between standard chat completion and an agent architecture is: **Does the task require the model to access external systems or take actions beyond generating text?**
 
 // Graphic G3.5: Agent vs. chat decision flowchart showing the decision process for choosing between architectures
-image::ch03/g3-5-agent-vs-chat-decision.png[Agent vs. Chat Completion Decision Flowchart]
+image::ch03/g3-3-agent-vs-chat-decision.png[Agent vs. Chat Completion Decision Flowchart]
 
 If the answer is no -- if everything the model needs is already in the prompt or its training data, and the desired output is text -- then standard chat completion is sufficient. Adding an agent layer would introduce complexity without benefit.
 
@@ -265,15 +115,15 @@ If the answer is yes -- if the model needs to look up data, call APIs, execute c
 
 There is a middle ground worth noting. Some tasks involve light external data access that can be handled by your application code rather than by the model itself. For example, if every user query requires a database lookup, you might perform that lookup in your application code and include the results in the prompt, effectively implementing a RAG pattern rather than an agent pattern. The agent pattern is most valuable when the model needs to _decide_ which external actions to take based on the user's request, rather than following a fixed data retrieval pattern.
 
-=== 3.5.4 Cost and Complexity Considerations
+=== 3.3.4 Cost and Complexity Considerations
 
 Agent architectures come with real costs that must be weighed against their benefits:
 
-**Token costs.** Each iteration of the agent loop requires a model inference call. A task that requires three tool calls means at least four inference calls (initial reasoning plus one after each tool result). Each call consumes tokens and incurs API charges. For high-volume applications, these costs add up quickly.
+**Token costs.** Each iteration of the agent loop requires a model inference call. A task that requires three tool calls means at least four inference calls (initial reasoning plus one after each tool result). Each call consumes tokens and incurs charges. For high-volume applications, these costs add up quickly.
 
 **Latency.** Each loop iteration adds latency. The user must wait for the model to reason, for the tool to execute, and for the model to process the result -- potentially multiple times. An agent response that requires three tool calls will take significantly longer than a single chat completion response.
 
-**Error handling complexity.** Tools can fail. APIs return errors, databases time out, and external services go down. Your agent must handle these failures gracefully -- retrying, falling back, or informing the user -- which adds significant engineering complexity.
+**Error handling complexity.** Tools can fail. APIs return errors, databases time out, and external services go down. Your agent must handle these failures gracefully -- retrying, falling back, or informing the user -- which adds engineering complexity. You will address this directly in Section 3.6.
 
 **Safety and control.** An agent that can take actions in external systems introduces risk. A bug in tool calling logic could lead to unintended actions -- canceling the wrong subscription, sending emails to the wrong person, or modifying data incorrectly. You need guardrails, confirmation steps, and audit logging that are not necessary for text-only applications.
 
@@ -282,109 +132,394 @@ Agent architectures come with real costs that must be weighed against their bene
 Do not use an agent when chat completion suffices -- agents add complexity that must be justified. Every tool call is an additional point of failure, an additional cost, and an additional latency hit. Before building an agent, ask: "Can I solve this with a well-crafted prompt and a RAG pipeline?" If the answer is yes, the simpler architecture is almost always the better choice.
 ====
 
-== 3.6 Connecting Evaluation to Agents
+== 3.4 Building Agents with the Foundry Agent Service
 
-=== 3.6.1 How the Four Metrics Apply to Agent Outputs
+With the agent paradigm understood, you can now build one. In Microsoft Foundry, agents are created and run through the **Foundry Agent Service**. Rather than hand-building the execution loop yourself, you describe an agent declaratively -- its instructions, its model, and its tools -- and the service runs the propose-execute-observe loop over a conversation thread on your behalf.
 
-The four evaluation metrics you learned in Section 3.2 -- groundedness, relevance, coherence, and fluency -- apply to agent outputs just as they do to standard chat completion outputs. When an agent generates a final text response to the user, that response can and should be evaluated for groundedness (is the response supported by the data the agent retrieved through its tool calls?), relevance (does the response address the user's original request?), coherence (is the response logically organized?), and fluency (is the response well-written?).
+This section maps directly to **Lab 6 -- Build AI agents with portal and VS Code**. You will first create and test an agent in the Foundry portal, then build and run the same kind of agent in VS Code with the SDK.
 
-However, agents introduce a complication: the "source material" for groundedness evaluation is not a fixed set of retrieved chunks from a search index. Instead, it is the dynamic set of tool call results that the agent collected during its execution loop. Evaluating groundedness for an agent means verifying that the agent's final response is faithful to the data returned by its tools, not that it is faithful to a static document store.
+=== 3.4.1 Anatomy of a Foundry Agent: Instructions, Model, and Tools
 
-=== 3.6.2 Additional Evaluation Dimensions for Agents
+Every Foundry agent is defined by three things:
 
-Beyond the four standard text quality metrics, agents require additional evaluation dimensions that standard chat completion does not:
+* **A model deployment.** The underlying chat model (for example, a GPT-4o deployment) that does the reasoning.
+* **Instructions.** A natural-language description of the agent's role, goal, and behavior. This is where you define what the agent is for, how it should communicate, and -- critically -- when and how it should use its tools.
+* **Tools.** The set of capabilities the agent can call. These can be built-in tools provided by the service or, as you will see in Section 3.5, custom function tools you define yourself.
 
-**Tool selection accuracy** measures whether the agent chose the correct tools for the task. Did it call the right API? Did it pass the correct parameters? An agent might generate a fluent, coherent response that is completely wrong because it called the wrong tool or passed an incorrect customer ID.
+Writing strong instructions is the single highest-leverage thing you can do for agent quality. Vague instructions ("You are a helpful assistant") produce vague behavior. Specific instructions that state the agent's goal, its boundaries, and its tool-usage rules produce reliable behavior.
 
-**Task completion rate** measures whether the agent actually accomplished the user's goal. A user who asks "Cancel my subscription" expects the subscription to actually be canceled, not just described as canceled. Task completion evaluation requires checking the state of external systems after the agent completes its work -- was the subscription actually canceled? Was the email actually sent? Was the meeting actually created?
+Here is an example set of instructions for a simple inventory-lookup agent:
 
-These additional dimensions make agent evaluation more complex and more important than standard chat completion evaluation. In xref:ch04-agent-development.adoc[Chapter 4], you will build agents and encounter these evaluation challenges firsthand.
+[source,text]
+----
+You are an inventory assistant for Northwind Traders. Your goal is to answer
+staff questions about current product stock levels.
+
+GUIDELINES:
+- Always use the check_inventory tool to retrieve stock counts. Never guess or
+  fabricate a quantity.
+- If a product name is ambiguous, ask the user to clarify before calling a tool.
+- If a tool call fails, tell the user what went wrong instead of inventing an answer.
+- Keep responses short and factual.
+----
+
+=== 3.4.2 Creating and Testing an Agent in the Foundry Portal
+
+The fastest way to create your first agent is in the Foundry portal. The portal gives you a form-driven experience and a built-in playground for testing, with no code required.
+
+The general flow is:
+
+. Open your Foundry project and navigate to the **Agents** area.
+. Create a new agent and select the model deployment it should use.
+. Enter the agent's **instructions** (its role, goal, and behavior).
+. Attach one or more **tools**. For your first agent, you might attach a built-in tool; in Lab 7 you will attach a custom function tool.
+. Open the agent in the playground, send it a message, and watch it run -- including any tool calls it makes and the results it observes -- before producing a final response.
+
+The portal playground is the quickest way to verify that your instructions produce the behavior you want and that the agent selects the right tool at the right time. Iterate on the instructions here until the agent behaves correctly, then move to code.
+
+=== 3.4.3 Building and Running an Agent in VS Code with the SDK
+
+Once you are satisfied with an agent's design, you will recreate it in code so it can be version-controlled, tested, and integrated into an application. In VS Code, you connect to your Foundry project with the agents SDK, create the agent, start a thread, post a user message, run the agent over that thread, and read the result.
+
+The following Python sample illustrates the shape of this workflow. The exact class and method names depend on the version of the Foundry agents SDK you install, so treat this as a structural template rather than a verbatim API reference -- but the *sequence of steps* (connect → create agent → create thread → add message → run → read messages) is stable across the SDK.
+
+[source,python]
+----
+# Illustrative Foundry Agent Service workflow. Verify exact symbol names
+# against the SDK version you install (see the callout below).
+import os
+from azure.identity import DefaultAzureCredential
+from azure.ai.projects import AIProjectClient
+
+# 1. Connect to your Foundry project.
+project = AIProjectClient(
+    endpoint=os.environ["PROJECT_ENDPOINT"],
+    credential=DefaultAzureCredential(),
+)
+
+# 2. Create an agent: choose a model, give it instructions, attach tools.
+agent = project.agents.create_agent(
+    model="gpt-4o",                       # your model deployment name
+    name="inventory-assistant",
+    instructions=(
+        "You are an inventory assistant for Northwind Traders. "
+        "Always use the check_inventory tool to retrieve stock counts; "
+        "never fabricate a quantity. If a tool call fails, say so."
+    ),
+    tools=[],                             # custom function tools added in Section 3.5
+)
+
+# 3. Create a conversation thread and post a user message.
+thread = project.agents.threads.create()
+project.agents.messages.create(
+    thread_id=thread.id,
+    role="user",
+    content="How many units of the blue widget are in stock?",
+)
+
+# 4. Run the agent over the thread. The service drives the execution loop:
+#    reason -> propose tool call -> (your handler executes) -> observe -> respond.
+run = project.agents.runs.create_and_process(
+    thread_id=thread.id,
+    agent_id=agent.id,
+)
+
+# 5. Read the agent's final response from the thread.
+messages = project.agents.messages.list(thread_id=thread.id)
+for message in messages:
+    print(f"{message.role}: {message.content}")
+----
+
+[IMPORTANT]
+====
+The code above is *illustrative*. The Foundry agents SDK evolves quickly, and the precise package, client class, and method names (for example, how agents, threads, runs, and messages are created) differ between SDK versions. Always confirm the current symbols against the SDK version pinned in your lab environment and the official Microsoft Foundry documentation. The lab instructions provide the exact, tested calls -- this sample exists to show you the *shape* of the workflow, not to be copied verbatim.
+====
+
+== 3.5 Tools and Custom Function Tools
+
+In Section 3.4 you built an agent and pointed at the idea of attaching tools. This section opens up what a tool actually is. You will learn the anatomy of a **tool definition**, trace the **tool-call lifecycle** that connects the model to your code, and then define a custom **function tool** and register it with an agent. This section maps to **Lab 7 -- Use a custom function in an AI agent**.
+
+=== 3.5.1 Anatomy of a Tool Definition: Name, Description, and Parameter Schema
+
+A **tool definition** is a structured description you provide to the agent so the model knows what tools are available and how to call them. Every tool definition has three essential components: a function name, a description, and a parameter schema.
+
+The function name is a short, programmatic identifier like `get_stock_price` or `check_inventory`. The description is a natural language explanation of what the tool does. The parameter schema specifies what inputs the tool accepts, their types, and which are required. The schema is written in JSON Schema -- the same format you have seen for describing structured data.
+
+Here is a tool definition for a market-data lookup:
+
+[source,json]
+----
+{
+  "type": "function",
+  "function": {
+    "name": "get_stock_price",
+    "description": "Retrieves the current stock price and daily trading summary for a given ticker symbol. Returns the current price, daily high, daily low, opening price, and trading volume. Use this tool when the user asks about a stock's current price or today's trading activity.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "ticker": {
+          "type": "string",
+          "description": "The stock ticker symbol, e.g., 'AAPL' for Apple Inc."
+        },
+        "include_history": {
+          "type": "boolean",
+          "description": "If true, includes the last 30 days of closing prices in addition to the current price. Defaults to false."
+        }
+      },
+      "required": ["ticker"]
+    }
+  }
+}
+----
+
+image::ch03/g3-4-tool-definition-anatomy.png[Tool Definition Anatomy]
+
+Notice that this definition uses JSON Schema to describe the parameters. The `ticker` parameter is required, while `include_history` is optional with a described default. The model reads this schema to understand what arguments it needs to provide when calling the tool.
+
+Here is a critical insight that many developers miss: *the model selects tools based on their descriptions, not their code.* The model never sees the Python function that implements `get_stock_price`. It only sees the name, description, and parameter schema you provide. If your description is vague or misleading, the model will make poor tool-selection decisions regardless of how well the underlying function works. Compare:
+
+* **Weak:** "Gets stock data."
+* **Strong:** "Retrieves the current stock price and daily trading summary for a given ticker symbol. Returns the current price, daily high, daily low, opening price, and trading volume. Use this tool when the user asks about a stock's current price or today's trading activity."
+
+The weak description gives the model almost nothing to work with. The strong description specifies exactly what the tool returns and when to use it, so the model can make an informed decision.
+
+[TIP]
+====
+Write tool descriptions as if explaining the function to a colleague who has never seen the code. Include what the tool does, what it returns, and when to use it. The more precise your description, the more accurate the model's tool selection will be.
+====
+
+=== 3.5.2 The Tool-Call Lifecycle
+
+The tool calling process follows a three-phase lifecycle that is essential to understand: the model proposes a call, your application executes it, and the result is returned to the model.
+
+image::ch03/g3-5-tool-call-lifecycle.png[Tool Call Lifecycle]
+
+**Phase 1: The model proposes a tool call.** When the model determines that it needs to use a tool, it does not execute anything. Instead, it returns a structured response indicating which tool it wants to call and what arguments to pass. This response includes the tool name, the arguments as a JSON object, and a unique tool call ID.
+
+**Phase 2: Your application executes the tool.** Your application code receives the model's proposal, validates it, and executes the actual function. This is where real work happens -- the API call is made, the database is queried, the calculation is performed. Your code is fully in control of this step. You can add logging, validation, rate limiting, error handling, or any other logic before, during, and after execution.
+
+**Phase 3: The result is returned to the model.** Your application sends the tool's output back to the model as a new message in the thread. The model reads this result and decides what to do next -- it might generate a final text response, or it might propose another tool call to gather additional information.
+
+[IMPORTANT]
+====
+The model never executes tools directly -- your application code is the execution layer. The model only proposes tool calls by returning structured data. Your code decides whether to honor those proposals, how to execute them, and what results to return. This separation is a fundamental safety boundary: you control what actions the system actually takes.
+====
+
+When you use the Foundry Agent Service, the service orchestrates this lifecycle for you during a run, but for a custom function tool *your code still supplies the execution* in Phase 2. The function that does the real work is yours; the service handles routing the model's proposal to it and feeding the result back into the thread.
+
+=== 3.5.3 Defining a Custom Function Tool
+
+A **function tool** wires the tool definition you write to a real function in your code. There are two halves: the *definition* (the JSON-schema description the model reads) and the *implementation* (the Python function that runs in Phase 2 of the lifecycle).
+
+Here is a custom function tool for the inventory assistant from Section 3.4. First, the implementation -- an ordinary Python function:
+
+[source,python]
+----
+import json
+
+def check_inventory(product_name: str, warehouse: str = "main") -> str:
+    """Return the current stock count for a product at a warehouse.
+
+    This is the function that runs in Phase 2 of the tool-call lifecycle.
+    In a real system this would query a database or inventory API.
+    """
+    # Stand-in data for illustration; replace with a real lookup.
+    stock = {"blue widget": 42, "red widget": 0}
+    count = stock.get(product_name.lower())
+    if count is None:
+        return json.dumps({"error": f"Unknown product: {product_name}"})
+    return json.dumps({"product": product_name, "warehouse": warehouse, "in_stock": count})
+----
+
+Second, the definition the model reads. It describes the same function in the name/description/parameter-schema format from Section 3.5.1:
+
+[source,json]
+----
+{
+  "type": "function",
+  "function": {
+    "name": "check_inventory",
+    "description": "Returns the current number of units in stock for a named product at a given warehouse. Use this tool whenever the user asks how many units of a product are available.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "product_name": {
+          "type": "string",
+          "description": "The full product name, e.g., 'blue widget'."
+        },
+        "warehouse": {
+          "type": "string",
+          "description": "Warehouse identifier. Defaults to 'main' if not specified."
+        }
+      },
+      "required": ["product_name"]
+    }
+  }
+}
+----
+
+The name in the definition (`check_inventory`) must match the function your code dispatches to. When the model proposes a call to `check_inventory` with arguments like `{"product_name": "blue widget"}`, your code parses those arguments and invokes the real `check_inventory` function.
+
+=== 3.5.4 Registering the Function Tool with an Agent
+
+Registering a function tool means attaching its definition to the agent so the model knows the tool exists, and wiring its implementation so your code can run it when the model proposes a call. In the Foundry Agent Service, you pass your function tools when you create (or update) the agent. The following illustrative sample extends the agent from Section 3.4.3 to include the custom function tool:
+
+[source,python]
+----
+# Illustrative: attaching a custom function tool to a Foundry agent.
+# Verify exact symbol names against your installed SDK version.
+from azure.ai.agents.models import FunctionTool
+
+# Wrap your real Python function(s) as a function tool. The SDK introspects
+# the function signature and docstring to build the JSON parameter schema.
+functions = FunctionTool(functions={check_inventory})
+
+agent = project.agents.create_agent(
+    model="gpt-4o",
+    name="inventory-assistant",
+    instructions=(
+        "You are an inventory assistant for Northwind Traders. "
+        "Always use the check_inventory tool to retrieve stock counts; "
+        "never fabricate a quantity. If a tool call fails, say so."
+    ),
+    tools=functions.definitions,   # the definitions the model reads
+)
+----
+
+When the agent runs over a thread and the user asks "How many blue widgets are in stock?", the model proposes a call to `check_inventory`, your code (or an SDK helper) executes the real function, the JSON result is returned to the thread, and the model uses it to compose a grounded final answer.
+
+[NOTE]
+====
+As in Section 3.4.3, the precise SDK symbols (for example, `FunctionTool`, how definitions are passed, and whether the service auto-executes your function or you handle Phase 2 explicitly) vary by SDK version. Follow the exact, tested calls in the Lab 7 instructions. The durable idea is the separation between the tool *definition* the model reads and the *implementation* your code runs.
+====
+
+== 3.6 Handling Tool-Call Errors
+
+Because the model generates tool-call arguments as free-form data, you cannot blindly trust the arguments it provides, and you cannot assume that the underlying function will always succeed. The model might omit a required parameter, provide a value of the wrong type, or call a tool that does not exist. The function itself might time out, hit a rate limit, or get back an empty result. Robust agents validate inputs and handle failures explicitly.
+
+A defensive execution wrapper validates the proposal before running anything and catches failures during execution:
+
+[source,python]
+----
+import json
+
+def execute_tool_call(function_name, raw_arguments, available_tools):
+    """Safely execute a tool call with validation and error handling.
+
+    Returns a JSON-serializable dict that is sent back to the model in Phase 3.
+    """
+    # Validate: is this a tool we actually offer?
+    if function_name not in available_tools:
+        return {"error": f"Unknown tool: {function_name}"}
+
+    # Validate: can we parse the arguments?
+    try:
+        arguments = json.loads(raw_arguments)
+    except json.JSONDecodeError:
+        return {"error": "Invalid JSON in tool arguments"}
+
+    tool = available_tools[function_name]
+
+    # Validate: are required parameters present?
+    for param in tool.get("required_params", []):
+        if param not in arguments:
+            return {"error": f"Missing required parameter: {param}"}
+
+    # Execute with error handling.
+    try:
+        result = tool["handler"](**arguments)
+        return {"success": True, "data": result}
+    except TimeoutError:
+        return {"error": "Tool execution timed out"}
+    except Exception as e:
+        return {"error": f"Tool execution failed: {str(e)}"}
+----
+
+This wrapper guards against two categories of problems: *model errors* (the model proposes a bad call -- a nonexistent tool, malformed arguments, or a missing parameter) and *execution errors* (the tool itself fails -- a timeout, an exception, or unexpected data). In both cases the wrapper returns a structured error _to the model_ rather than crashing. The model can then read the error in Phase 3, explain to the user what went wrong, or try a different approach.
+
+The agent's instructions reinforce this at the behavior level. Recall the guideline from Section 3.4.1: "If a tool call fails, tell the user what went wrong instead of inventing an answer." Validation in code and instructions in prose work together.
+
+[WARNING]
+====
+An agent that silently fails and returns a plausible-sounding but incorrect answer is more dangerous than one that explicitly reports an error. Always prefer explicit failure over silent fabrication. When a tool call fails, the agent should tell the user what failed and what information is missing, rather than filling the gap with generated text that looks like real data.
+====
 
 == 3.7 Hands-On Connections
 
 The concepts in this chapter come to life in two lab activities. Here is what to focus on in each.
 
-=== Lab 05: Evaluate Generative AI Model Performance
+=== Lab 6: Build AI Agents with Portal and VS Code
 
-In Lab 05, you will run evaluations against a set of test queries and examine the resulting metric scores. As you work through the lab, pay attention to the following:
+In Lab 6, you will create an agent in the Microsoft Foundry portal, test it in the playground, and then rebuild and run it in VS Code with the agents SDK. As you work through the lab, pay attention to the following:
 
-* **Score distribution.** Do not just look at average scores -- examine the distribution. A few very low scores can drag down the average, and those outliers are often the most instructive cases. What do the low-scoring queries have in common?
-* **Metric correlation.** Notice whether low scores tend to cluster together. If a query has low groundedness, does it also tend to have low relevance? These correlations help you identify root causes.
-* **Before and after.** If the lab includes a prompt or parameter adjustment, compare the scores before and after. Which metrics improved? Did any get worse? This teaches you that improvements are often tradeoffs.
+* **Instructions drive behavior.** Notice how changing the agent's instructions changes how it behaves -- when it uses a tool, how it phrases answers, and what it refuses to do. Iterate on the instructions in the portal playground before you move to code.
+* **Portal-to-code parity.** Confirm that the agent you build in VS Code matches the one you tested in the portal. The portal is for fast iteration; the SDK is for version control and integration.
+* **Watching the loop run.** Observe the agent reason, (optionally) call a tool, observe the result, and then respond. This is the execution loop from Section 3.2.3 in action.
 
-=== Lab 06: Explore AI Agent Development
+=== Lab 7: Use a Custom Function in an AI Agent
 
-In Lab 06, you will work with a simple agent that uses tool calling to complete tasks. Focus on:
+In Lab 7, you will define a custom function tool -- a name, a description, and a JSON parameter schema -- and attach it to an agent so the model can call your function. Focus on:
 
-* **The execution loop in action.** Watch how the agent reasons about which tool to call, examines the result, and decides what to do next. This iterative pattern is the core of agent behavior.
-* **Tool selection decisions.** Notice when the agent chooses to call a tool versus when it generates a text response directly. What triggers the decision to use a tool?
-* **Failure handling.** If a tool call fails or returns unexpected data, observe how the agent responds. Does it retry? Does it fall back to a text response? Does it inform the user?
+* **Definition vs. implementation.** Keep the two halves clear: the definition the model reads (Section 3.5.1) and the function your code runs (Section 3.5.3). The names must match.
+* **Tool-call lifecycle in your code.** Trace the three phases (propose, execute, return) through the lab. Identify where the model's proposal arrives, where your function executes, and where the result is handed back.
+* **Description quality and tool selection.** Experiment with vague versus precise descriptions and watch how that affects whether the model calls your tool at the right time.
+* **Failure handling.** Make a tool call fail (for example, pass an unknown product) and observe whether the agent reports the failure honestly rather than fabricating a result.
 
 == 3.8 Assessment Preparation
 
 This week includes two assessments that test your ability to apply the concepts from this chapter. Here is guidance for approaching each one effectively.
 
-=== Evaluation Report (600-900 words)
-
-The Evaluation Report asks you to present metric scores from Lab 05, interpret what they reveal, recommend improvements, and identify limitations. To prepare:
-
-* **Present the data clearly.** Include the actual metric scores from your lab work. Organize them so the reader can quickly see patterns -- which metrics are strong, which are weak, and which queries are problematic. Consider using a table or structured format.
-* **Interpret, do not just describe.** Saying "groundedness scored 3.2" is description. Saying "the groundedness score of 3.2 suggests the model is partially fabricating information, likely because the knowledge base does not cover all query topics" is interpretation. Connect each score to a specific diagnosis of what is happening in the pipeline.
-* **Recommend at least two specific adjustments.** Do not offer vague suggestions like "improve the prompts." Instead, provide concrete, actionable recommendations tied to your diagnosis. If relevance is low, specify what you would change about the retrieval configuration. If groundedness is low, describe the specific prompt modification you would make.
-* **Identify one limitation.** Acknowledge something that the metrics do not capture or a situation where the evaluation approach falls short. This demonstrates critical thinking about the evaluation framework itself, not just the results.
-
-=== Discussion: Agent vs. Chat Completion (250-400 words initial post)
+=== Agent vs. Chat Completion (250-400 words initial post)
 
 The discussion asks you to describe one task suited to an agent architecture and one suited to standard chat completion, and to identify the key differentiator between them. To prepare:
 
-* **Choose real, concrete tasks.** Do not describe abstract categories of tasks -- describe specific, named tasks with enough detail that a reader can evaluate whether your architectural choice is justified. "Processing a customer refund" is more concrete than "tasks that require actions."
-* **Apply the decision framework.** For each task, explain _why_ your chosen architecture is appropriate using the criteria from Section 3.5.3. Does the task require external data access or actions? Can it be accomplished with text generation alone?
+* **Choose real, concrete tasks.** Do not describe abstract categories -- describe specific, named tasks with enough detail that a reader can evaluate whether your architectural choice is justified. "Processing a customer refund" is more concrete than "tasks that require actions."
+* **Apply the decision framework.** For each task, explain _why_ your chosen architecture is appropriate using the criteria from Section 3.3.3. Does the task require external data access or actions? Can it be accomplished with text generation alone?
 * **Identify the key differentiator.** What is the single most important factor that makes you choose one architecture over the other? This should be a clear, defensible principle, not a list of minor differences.
 
-Do not try to find the "right" tasks for this discussion. There are many valid examples for each architecture. The assessment evaluates the quality of your reasoning and the clarity of your justification, not the specific tasks you choose.
+There are many valid examples for each architecture. The assessment evaluates the quality of your reasoning and the clarity of your justification, not the specific tasks you choose.
+
+=== Custom Function Tool Write-Up
+
+This assessment asks you to document the custom function tool you built in Lab 7. To prepare:
+
+* **Present the tool definition.** Include the function name, the description, and the JSON parameter schema. Explain why each parameter exists and which are required.
+* **Explain the lifecycle.** Walk through what happens when the model decides to call your tool: how the proposal arrives, how your code executes the function, and how the result returns to the agent. Tie your explanation to the three phases in Section 3.5.2.
+* **Justify the description.** Explain how the wording of your tool description helps the model decide when to call it. If you revised the description during the lab, describe what you changed and why.
+* **Address one failure mode.** Identify one way the tool call could fail and describe how your agent handles it without fabricating a result.
 
 == 3.9 Key Terms
 
-groundedness:: A metric measuring how well a model's generated response is supported by the source documents or context provided to it. A highly grounded response contains only claims traceable to the source material.
-
-relevance:: A metric measuring how well a model's response addresses the specific question or task the user presented. A highly relevant response directly and completely engages with the user's intent.
-
-coherence:: A metric measuring the logical flow, organizational quality, and internal consistency of a model's response. A highly coherent response presents ideas in a logical sequence with smooth transitions.
-
-fluency:: A metric measuring the linguistic quality of a model's response, including grammar, word choice, sentence structure, and naturalness. A highly fluent response reads as if written by a competent human.
-
-evaluation scorecard:: A collection of metric scores across a set of test queries used to assess model performance systematically rather than through subjective judgment.
-
 AI agent:: A system built on top of a language model that can take actions in the world through tool calling, going beyond text generation to interact with external systems and data sources.
 
-tool calling:: The capability of a language model to invoke predefined functions or APIs during the generation process, enabling the model to access external data, perform calculations, or trigger actions. Also called function calling.
-
-execution loop:: The iterative cycle an agent follows: receive a task, reason about it, select and execute a tool, observe the result, and repeat until the task is complete.
-
-system prompt:: The initial instruction message that defines a model's or agent's role, capabilities, constraints, and behavioral guidelines. For agents, the system prompt also governs tool usage decisions.
-
-tool definition:: A structured description of a tool available to an agent, including its name, purpose, and the parameters it accepts, provided in a format the model can interpret.
-
-short-term memory:: An agent's ability to maintain context across multiple steps within a single task execution, typically implemented through conversation history that includes tool calls and results.
-
-long-term memory:: An agent's ability to retain information across multiple separate interactions, typically implemented through external storage of conversation summaries, user preferences, or learned facts.
+agent paradigm:: The architectural shift from one-shot text generation to an iterative loop in which a model reasons, selects and executes tools, observes results, and continues until a task is complete.
 
 chat completion:: The standard interaction pattern where a user sends messages to a language model and receives a text response, without the model taking external actions or calling tools.
 
-task completion rate:: An evaluation metric for agents measuring whether the agent actually accomplished the user's stated goal, verified by checking the state of external systems.
+tool:: A capability -- such as a function, API, or knowledge source -- that an agent can invoke to obtain data or take an action beyond generating text.
 
-tool selection accuracy:: An evaluation metric for agents measuring whether the agent chose the correct tools and parameters for the task it was asked to perform.
+tool calling:: The capability of a language model to invoke predefined functions or tools during generation, enabling it to access external data, perform calculations, or trigger actions. Also called function calling.
 
-temperature:: A model parameter controlling the randomness of token selection. Lower temperatures produce more deterministic, focused responses; higher temperatures produce more varied, creative responses.
+execution loop:: The iterative cycle an agent follows: receive a task, reason about it, select and execute a tool, observe the result, and repeat until the task is complete.
 
-top-k parameter:: In retrieval systems, the setting that determines how many of the most-similar document chunks are returned for a given query.
+Foundry Agent Service:: The service in Microsoft Foundry used to create, configure, and run AI agents. It manages the execution loop over a conversation thread given an agent's model, instructions, and tools.
 
-false positive / false negative:: In evaluation contexts, a false positive is a response flagged as problematic when it is actually acceptable; a false negative is a problematic response that the evaluation fails to catch.
+agent instructions:: The natural-language definition of an agent's role, goal, constraints, and behavioral guidelines -- the agent equivalent of a system prompt -- including when and how the agent should use its tools.
+
+thread:: The ordered sequence of messages, tool calls, and tool results that make up a single agent conversation. The thread serves as the agent's short-term memory across the steps of a run.
+
+tool definition:: A structured description of a tool available to an agent, including its name, a natural-language description, and a JSON Schema specification of its parameters.
+
+function tool:: A tool whose implementation is a custom function you write. It has two halves: the definition the model reads (name, description, parameter schema) and the function in your code that runs when the tool is called.
+
+tool call:: A structured proposal emitted by the model indicating which tool it wants to invoke and with what arguments. The application -- not the model -- decides whether and how to execute it.
+
+tool-call lifecycle:: The three-phase process of tool usage: the model proposes a tool call, the application validates and executes it, and the result is returned to the model for further reasoning.
 
 == 3.10 Chapter Summary
 
-This chapter equipped you with two foundational capabilities for building production-quality AI systems. First, you learned how to evaluate generative AI outputs using four standard metrics: groundedness, relevance, coherence, and fluency. These metrics transform subjective impressions of response quality into measurable, diagnosable, and actionable scores. You learned that groundedness is the safety-critical metric -- a response that sounds good but fabricates information is more dangerous than one that sounds rough but stays faithful to its sources. You practiced reading evaluation scorecards, diagnosing the root causes of weak scores, and recommending specific adjustments to prompts, parameters, and pipeline configurations.
+This chapter marked your transition from generating text to taking action. You learned the **agent paradigm**: instead of a single text-in, text-out exchange, an agent runs an iterative **execution loop** -- receive task, reason, select tool, execute, observe, repeat -- that lets a language model interact with external systems through **tool calling**. You also learned the decision framework for when an agent is warranted: if a task requires external data or actions beyond text generation, an agent is appropriate; if it can be done with text alone, simpler chat completion is the better choice. (Evaluation of an agent's output still matters -- those disciplines were covered in Chapters 1 and 2.)
 
-Second, you were introduced to AI agents -- systems that extend language models beyond text generation into the realm of action. You learned that agents are not a separate product but an architectural pattern built on top of chat completion with tool calling. The agent execution loop -- reason, select tool, execute, observe, repeat -- enables models to accomplish tasks that require interacting with external systems, accessing real-time data, and performing multi-step workflows. You also learned the critical decision framework for choosing between agent and chat completion architectures: if the task requires external data or actions beyond text generation, consider an agent; if it can be accomplished with text alone, standard chat completion is simpler and more appropriate.
+You then built agents with the **Foundry Agent Service**, which packages an agent as a model, a set of **instructions**, and a collection of **tools**, and runs the loop over a conversation **thread**. You created and tested an agent in the Foundry portal, then rebuilt it in VS Code with the SDK (Lab 6). You opened up what a tool actually is: the anatomy of a **tool definition** (name, description, and JSON parameter schema), the three-phase **tool-call lifecycle** (the model proposes, your code executes, the result returns), and how to define a custom **function tool** and register it with an agent (Lab 7). Finally, you learned to handle tool-call errors so that an agent fails explicitly rather than fabricating a result -- validating proposals in code and reinforcing honest failure in the agent's instructions.
 
-These two threads -- evaluation and agents -- converge in an important way. As you build more capable AI systems that take actions in the world, the stakes of evaluation increase. An agent that fabricates data or selects the wrong tool can cause real harm in external systems. The evaluation discipline you learned in this chapter becomes even more essential as you move into xref:ch04-agent-development.adoc[Chapter 4], where you will build agents with tool calling and confront the engineering challenges of making them reliable, safe, and effective.
+These foundations -- instructions, tool definitions, the tool-call lifecycle, and error handling -- are the architectural vocabulary for the rest of the agent arc. In xref:ch04-agent-development.adoc[Chapter 4, "Agent Knowledge & Protocols: MCP & Foundry IQ"], you will extend agents beyond hand-written functions by connecting them to standardized tool servers through the Model Context Protocol and to managed knowledge through Foundry IQ. The custom function tools you built here are the simplest case of a much larger ecosystem of agent capabilities ahead.

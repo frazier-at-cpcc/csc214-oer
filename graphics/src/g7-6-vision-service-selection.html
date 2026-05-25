@@ -1,0 +1,245 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="style.css">
+<style>
+/* ── Layout shell ───────────────────────────────────────────── */
+.ladder{
+  display:flex;
+  flex-direction:column;
+  gap:0;
+  flex:1;
+}
+
+/* Each decision row: question box + connector + result box */
+.decision-row{
+  display:flex;
+  align-items:center;
+  gap:0;
+}
+
+/* Question (amber) box — left column */
+.q-box{
+  background:var(--amber-bg);
+  border:4px solid var(--amber);
+  border-radius:20px;
+  padding:28px 32px;
+  font-size:32px;
+  font-weight:600;
+  color:#78350f;
+  line-height:1.3;
+  width:640px;
+  flex-shrink:0;
+}
+.q-box em{ color:#92400e; font-style:italic; }
+
+/* YES → connector */
+.yes-connector{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  width:130px;
+  flex-shrink:0;
+  gap:6px;
+}
+.yes-label{
+  font-size:26px;
+  font-weight:700;
+  color:var(--green);
+  white-space:nowrap;
+}
+.h-line{
+  height:5px;
+  background:var(--line);
+  width:100%;
+  border-radius:3px;
+  position:relative;
+}
+.h-line::after{
+  content:"";
+  position:absolute;
+  right:-2px;
+  top:-9px;
+  border-left:22px solid var(--line);
+  border-top:12px solid transparent;
+  border-bottom:12px solid transparent;
+}
+
+/* Result (capability) box — right column */
+.r-box{
+  flex:1;
+  border-radius:20px;
+  padding:28px 32px;
+  font-size:32px;
+  font-weight:700;
+  line-height:1.3;
+}
+.r-box .r-sub{
+  font-size:26px;
+  font-weight:400;
+  color:var(--muted);
+  margin-top:8px;
+}
+.r-box.blue { background:var(--blue-bg); border:4px solid var(--blue); color:var(--blue); }
+.r-box.green{ background:var(--green-bg);border:4px solid var(--green);color:var(--green);}
+.r-box.teal { background:var(--teal-bg); border:4px solid var(--teal); color:var(--teal); }
+
+/* NO ↓ spacer between rows */
+.no-spacer{
+  display:flex;
+  align-items:flex-start;
+  gap:0;
+  margin:0;
+}
+.no-left{
+  width:640px;
+  flex-shrink:0;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  padding:6px 0;
+}
+.v-line{
+  width:5px;
+  height:44px;
+  background:var(--line);
+  border-radius:3px;
+}
+.no-label{
+  font-size:24px;
+  font-weight:700;
+  color:var(--muted);
+  margin-top:4px;
+}
+.no-right{
+  flex:1;
+  width:130px;  /* spacer matching yes-connector */
+}
+
+/* Responsible AI box — full-width footer panel */
+.rai-box{
+  background:var(--purple-bg);
+  border:4px solid var(--purple);
+  border-radius:20px;
+  padding:28px 40px;
+  display:flex;
+  align-items:flex-start;
+  gap:48px;
+}
+.rai-title{
+  font-size:32px;
+  font-weight:700;
+  color:var(--purple);
+  white-space:nowrap;
+  margin-right:8px;
+}
+.rai-bullets{
+  font-size:28px;
+  color:var(--muted);
+  margin:0;
+  padding-left:24px;
+  line-height:1.7;
+}
+.rai-italic{
+  font-size:25px;
+  color:var(--purple);
+  font-style:italic;
+  margin-top:8px;
+  white-space:nowrap;
+}
+</style>
+</head>
+<body>
+<div id="fig">
+  <h1 class="fig-title">Choosing a Vision Capability</h1>
+  <p class="fig-sub">Pick the capability first, then layer Responsible AI on top.</p>
+
+  <!-- Decision ladder -->
+  <div class="ladder">
+
+    <!-- ── Row 1 ── -->
+    <div class="decision-row">
+      <div class="q-box">Need to <em>create or edit</em> an image?</div>
+      <div class="yes-connector">
+        <div class="yes-label">YES →</div>
+        <div class="h-line"></div>
+      </div>
+      <div class="r-box blue">
+        Image Generation &amp; Editing
+        <div class="r-sub">generate from prompts; inpaint / mask edits</div>
+      </div>
+    </div>
+
+    <!-- NO ↓ gap 1 -->
+    <div class="no-spacer">
+      <div class="no-left">
+        <div class="v-line"></div>
+        <div class="no-label">NO ↓</div>
+        <div class="v-line"></div>
+      </div>
+      <div class="no-right"></div>
+    </div>
+
+    <!-- ── Row 2 ── -->
+    <div class="decision-row">
+      <div class="q-box">Need a <em>conversational / flexible</em> answer about an image?</div>
+      <div class="yes-connector">
+        <div class="yes-label">YES →</div>
+        <div class="h-line"></div>
+      </div>
+      <div class="r-box green">
+        Multimodal Understanding
+        <div class="r-sub">vision chat · visual Q&amp;A · alt-text</div>
+      </div>
+    </div>
+
+    <!-- NO ↓ gap 2 -->
+    <div class="no-spacer">
+      <div class="no-left">
+        <div class="v-line"></div>
+        <div class="no-label">NO ↓</div>
+        <div class="v-line"></div>
+      </div>
+      <div class="no-right"></div>
+    </div>
+
+    <!-- ── Row 3 ── -->
+    <div class="decision-row">
+      <div class="q-box">Need <em>structured data at scale</em> from images&nbsp;/ video&nbsp;/ documents?</div>
+      <div class="yes-connector">
+        <div class="yes-label">YES →</div>
+        <div class="h-line"></div>
+      </div>
+      <div class="r-box teal">
+        Content Understanding
+        <div class="r-sub">fields · markdown · JSON, at scale</div>
+      </div>
+    </div>
+
+    <!-- Spacer before footer -->
+    <div style="height:36px;"></div>
+
+    <!-- ── Responsible AI footer ── -->
+    <div class="rai-box">
+      <div>
+        <div class="rai-title">Responsible AI layer</div>
+        <div class="rai-italic">applies to ALL paths</div>
+      </div>
+      <ul class="rai-bullets">
+        <li>Content filters &amp; policy</li>
+        <li>Indirect-prompt-injection defense</li>
+        <li>Brand &amp; safety compliance</li>
+      </ul>
+    </div>
+
+    <!-- Spacer before note -->
+    <div style="height:32px;"></div>
+
+    <p class="note" style="margin:0;">Select the right capability first, then layer Responsible AI controls on top — every time.</p>
+
+  </div><!-- /ladder -->
+</div>
+</body>
+</html>
