@@ -38,8 +38,7 @@ The *Model Context Protocol (MCP)* solves this by defining a single, open standa
 
 The MCP architecture follows a client-server model. Your agent acts as an *MCP client*. Each external service that wants to expose tools to agents runs an *MCP server*. The MCP server wraps the service's native API behind a standardized interface, translating between the MCP protocol and whatever the underlying service actually speaks.
 
-// GRAPHIC TODO: renumber MCP client-server figure to ch04
-image::ch05/g5-1-mcp-client-server.png[MCP Client-Server Architecture]
+image::ch04/g4-1-mcp-client-server.png[MCP Client-Server Architecture]
 
 In the insurance company scenario, the architecture would look like this. The CRM team deploys an MCP server that wraps their REST API. This server exposes tools like `lookup_policyholder`, `get_policy_details`, and `update_contact_info`. The IT operations team deploys an MCP server that wraps their ticketing system, exposing tools like `create_claim_ticket`, `get_claim_status`, and `assign_adjuster`. The finance team deploys an MCP server that wraps their billing platform, exposing tools like `get_premium_balance` and `record_payment`.
 
@@ -54,8 +53,7 @@ Think of MCP like a USB port for AI agents -- plug in any tool server and the ag
 
 An MCP connection follows a structured lifecycle with three phases: initialization, discovery, and operation.
 
-// GRAPHIC TODO: renumber MCP connection lifecycle figure to ch04
-image::ch05/g5-2-mcp-connection-lifecycle.png[MCP Connection Lifecycle]
+image::ch04/g4-2-mcp-connection-lifecycle.png[MCP Connection Lifecycle]
 
 *Phase 1: Initialization.* The MCP client (your agent) establishes a connection to an MCP server. The client sends an `initialize` request that includes the client's protocol version and capabilities. The server responds with its own protocol version and capabilities. This handshake ensures both sides agree on what protocol features they support -- capability negotiation happens here, during the `initialize` exchange, not as a separate later step.
 
@@ -306,7 +304,7 @@ This matters enormously in the insurance scenario. A claims adjuster handling co
 The feature that most distinguishes Foundry IQ from a classic RAG pipeline is *agentic retrieval*: Foundry IQ treats retrieval itself as a reasoning task rather than a single similarity lookup.
 
 // GRAPHIC TODO: foundry-iq-agentic-retrieval
-image::ch04/g4-6-foundry-iq-agentic-retrieval.png[Foundry IQ Agentic Retrieval]
+image::ch04/g4-3-foundry-iq-agentic-retrieval.png[Foundry IQ Agentic Retrieval]
 
 When the agent sends a question to the knowledge base, Foundry IQ does the following:
 

@@ -49,7 +49,7 @@ The Agent Framework organizes development around a small set of core ideas.
 **Graph-based workflows.** Beyond a single agent, the framework models multi-step processes as graphs of steps -- the foundation for the orchestration patterns in Section 5.3.
 
 // GRAPHIC TODO: regenerate sdk-vs-direct-api figure to reflect the Microsoft Agent Framework
-image::ch05/g5-3-sdk-vs-direct-api.png[Framework vs. Direct API Comparison]
+image::ch05/g5-1-sdk-vs-direct-api.png[Framework vs. Direct API Comparison]
 
 === 5.2.3 Agent Orchestration vs. Workflow Orchestration
 
@@ -166,8 +166,7 @@ Each agent is an expert in its domain. Its instructions are concise, its tool se
 
 The Agent Framework ships a set of named **orchestration patterns** for composing specialized agents. Rather than hand-coding coordination as you would with the raw API, you choose a pattern that matches the shape of your task. The figure below shows a central orchestrator routing work to specialists -- the mental model that underlies several of these patterns.
 
-// GRAPHIC TODO: renumber multi-agent orchestrator figure to ch05
-image::ch04/g4-3-multi-agent-orchestrator.png[Multi-Agent Orchestrator]
+image::ch05/g5-2-multi-agent-orchestrator.png[Multi-Agent Orchestrator]
 
 **Sequential orchestration.** Agents run one after another, each agent's output becoming the next agent's input. This fits tasks with natural ordered stages -- for example, a *Data Gathering Agent* retrieves raw market data and filings, an *Analysis Agent* turns that into insights and comparisons, and a *Report Agent* formats the result into a document. Sequential pipelines are simple to implement and easy to debug because you can inspect each hand-off, but they are inherently serial: every stage must finish before the next begins, which increases end-to-end latency.
 
@@ -181,8 +180,7 @@ image::ch04/g4-3-multi-agent-orchestrator.png[Multi-Agent Orchestrator]
 
 The figure below contrasts how work flows through several of these patterns.
 
-// GRAPHIC TODO: renumber coordination patterns figure to ch05
-image::ch04/g4-4-coordination-patterns.png[Multi-Agent Coordination Patterns]
+image::ch05/g5-3-coordination-patterns.png[Multi-Agent Coordination Patterns]
 
 Most real-world systems combine patterns. The financial research assistant might run the Market Data Agent and Document Research Agent *concurrently* to gather data, then *sequentially* pass everything to the Quantitative Analysis Agent and finally the Report Generation Agent. Tying back to Section 5.2.3: the open-ended, "figure out the plan" pieces lean toward agent-orchestrated patterns (handoff, group chat, Magentic-One), while fixed, must-run-in-order pieces lean toward deterministic workflow orchestration with sequential steps.
 
@@ -215,8 +213,7 @@ Multi-agent systems add failure modes beyond those of a single agent. Knowing th
 
 The mitigations mirror single-agent error handling, extended to coordination: retry transient failures with exponential backoff; provide fallback paths so the system still delivers partial value when one agent is down (graceful degradation); validate each agent's outputs before combining them; and define explicit escalation conditions where the system stops and hands off to a human rather than fabricating an answer. The decision tree below summarizes how to route different failure types.
 
-// GRAPHIC TODO: renumber error-handling decision tree figure to ch05
-image::ch04/g4-5-error-handling-decision-tree.png[Multi-Agent Error Handling Decision Tree]
+image::ch05/g5-4-error-handling-decision-tree.png[Multi-Agent Error Handling Decision Tree]
 
 [WARNING]
 ====
@@ -257,7 +254,6 @@ Whether the result is one agent or a small multi-agent team is a design choice y
 
 Before committing, assess feasibility across four dimensions. **Technical feasibility:** can the chosen capabilities actually perform the tasks at the required accuracy? Run a small proof of concept. **Data feasibility:** do you have access to the knowledge and inputs the agent needs, in a usable format, within privacy and compliance constraints? **Operational feasibility:** can you deploy, monitor, and maintain the solution with the subscriptions, quotas, and expertise available? **Economic feasibility:** does the per-transaction cost justify the value relative to the manual process?
 
-// GRAPHIC TODO: confirm capstone scoping decision tree reflects the agentic multimodal capstone
 image::ch05/g5-5-capstone-scoping-decision-tree.png[Capstone Scoping Decision Tree]
 
 [IMPORTANT]

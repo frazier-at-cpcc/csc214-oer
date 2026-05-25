@@ -41,7 +41,7 @@ An **AI agent** is a system built on top of a language model that can take actio
 The key distinction is that an agent does not just describe what should happen -- it makes it happen. When the user says "Cancel my subscription," an agent can call a `cancel_subscription` tool that actually interacts with the billing system, then call a `send_email` tool to send the confirmation, and finally generate a text response confirming what was done.
 
 // Graphic G3.3: Agent execution loop showing the cycle of receive task, reason, select tool, execute, observe, repeat
-image::ch03/g3-3-agent-execution-loop.png[Agent Execution Loop]
+image::ch03/g3-1-agent-execution-loop.png[Agent Execution Loop]
 
 === 3.2.3 The Agent Execution Loop: Receive Task, Reason, Select Tool, Execute, Observe, Repeat
 
@@ -69,7 +69,7 @@ An AI agent is composed of a few key components. In the Foundry Agent Service (w
 **Execution loop.** The loop described in Section 3.2.3 is the runtime engine that orchestrates the interaction between the model's reasoning and the tool executions. With the Foundry Agent Service, the service manages much of this loop for you when you start a *run* over a thread, but it is essential to understand what is happening underneath.
 
 // Graphic G3.4: Agent vs. chat completion comparison showing the components and capabilities of each
-image::ch03/g3-4-agent-vs-chat-comparison.png[Agent vs. Chat Completion Comparison]
+image::ch03/g3-2-agent-vs-chat-comparison.png[Agent vs. Chat Completion Comparison]
 
 [NOTE]
 ====
@@ -107,7 +107,7 @@ Examples include:
 The fundamental question for deciding between standard chat completion and an agent architecture is: **Does the task require the model to access external systems or take actions beyond generating text?**
 
 // Graphic G3.5: Agent vs. chat decision flowchart showing the decision process for choosing between architectures
-image::ch03/g3-5-agent-vs-chat-decision.png[Agent vs. Chat Completion Decision Flowchart]
+image::ch03/g3-3-agent-vs-chat-decision.png[Agent vs. Chat Completion Decision Flowchart]
 
 If the answer is no -- if everything the model needs is already in the prompt or its training data, and the desired output is text -- then standard chat completion is sufficient. Adding an agent layer would introduce complexity without benefit.
 
@@ -272,8 +272,7 @@ Here is a tool definition for a market-data lookup:
 }
 ----
 
-// GRAPHIC TODO: renumber tool definition anatomy figure to ch03
-image::ch04/g4-2-tool-definition-anatomy.png[Tool Definition Anatomy]
+image::ch03/g3-4-tool-definition-anatomy.png[Tool Definition Anatomy]
 
 Notice that this definition uses JSON Schema to describe the parameters. The `ticker` parameter is required, while `include_history` is optional with a described default. The model reads this schema to understand what arguments it needs to provide when calling the tool.
 
@@ -293,8 +292,7 @@ Write tool descriptions as if explaining the function to a colleague who has nev
 
 The tool calling process follows a three-phase lifecycle that is essential to understand: the model proposes a call, your application executes it, and the result is returned to the model.
 
-// GRAPHIC TODO: renumber tool-call lifecycle figure to ch03
-image::ch04/g4-1-tool-execution-lifecycle.png[Tool Call Lifecycle]
+image::ch03/g3-5-tool-call-lifecycle.png[Tool Call Lifecycle]
 
 **Phase 1: The model proposes a tool call.** When the model determines that it needs to use a tool, it does not execute anything. Instead, it returns a structured response indicating which tool it wants to call and what arguments to pass. This response includes the tool name, the arguments as a JSON object, and a unique tool call ID.
 

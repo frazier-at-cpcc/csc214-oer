@@ -44,7 +44,7 @@ Content Understanding adds the layers OCR is missing. On top of OCR it performs 
 
 // GRAPHIC TODO: update to content-understanding-extraction
 // Graphic G8.1: Content Understanding extraction showing a sample insurance form processed through OCR, layout analysis, and field extraction, contrasting raw OCR strings with the structured markdown/JSON grounded representation
-image::ch08/g8-1-document-intelligence-extraction.png[Content Understanding Multimodal Extraction]
+image::ch08/g8-1-content-understanding-extraction.png[Content Understanding Multimodal Extraction]
 
 === 8.2.2 The Multimodal Extraction Pipeline: OCR, Layout, Field Extraction
 
@@ -170,7 +170,7 @@ You know that generative models provide flexible reasoning but at higher per-tok
 
 // GRAPHIC TODO: update solution architecture to AI-103 agentic/multimodal
 // Graphic G8.6: Reference architecture for an agentic multimodal solution -- multimodal input flows through Content Understanding extraction into grounded representations, which feed Foundry IQ knowledge and a RAG retrieval layer; an agent (with tools/MCP) reasons over them; supporting services (Key Vault, Storage, Monitor) wrap the whole
-image::ch08/g8-6-solution-architecture-template.png[Agentic Multimodal Solution Architecture Template]
+image::ch08/g8-2-solution-architecture-template.png[Agentic Multimodal Solution Architecture Template]
 
 === 8.5.2 Common Integration Patterns
 
@@ -252,7 +252,7 @@ Your technical design document must include:
 . **References** -- Citations to documentation, course materials, and labs that support your design decisions.
 
 // Graphic G8.7: Design justification structure showing the four-part pattern (problem, options, choice, reasoning) with a sample justification for selecting a Content Understanding analyzer
-image::ch08/g8-7-design-justification-structure.png[Design Justification Structure]
+image::ch08/g8-3-design-justification-structure.png[Design Justification Structure]
 
 === 8.6.3 Writing Design Justifications: Problem, Options, Choice, Reasoning
 
