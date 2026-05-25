@@ -24,7 +24,7 @@ The revision is a **full re-alignment**: rebrand throughout, rebalance content t
 | 4 | Branding | **Adopt "Microsoft Foundry" and "Foundry Tools"**, with a one-time note explaining the rename from Azure AI Foundry / Azure AI Services |
 | 5 | Ch6 lab load | **Keep all 6 labs in Ch6** (text analysis + speech), preserving Ch6 as the intensive lab week |
 | 6 | Capstone | **Modernize to an agentic multimodal build** (agent + Foundry IQ + tools/MCP + Content Understanding); keep design-doc + recorded-walkthrough deliverables |
-| 7 | Workflow | **Make all changes in a fork** of the repo (mechanics confirmed before bulk edits / push) |
+| 7 | Workflow | **Make all changes on an isolated branch** (`ai-103-realignment`), not `main` and not a separate fork; PR to `main` when done |
 
 ## 3. AI-103 reference (authoritative)
 
@@ -165,7 +165,7 @@ Each chapter retains the established structure: Learning Objectives → numbered
 
 ## 10. Workflow constraint
 
-All changes land in a **fork** of the repo (per user instruction). Before bulk content edits or any push, confirm: literal GitHub fork vs. isolated branch/worktree; target remote; PR-back vs. standalone. This design doc is committed to an isolated branch (`ai-103-realignment`) pending that confirmation.
+All changes land on an **isolated branch** (`ai-103-realignment`) in this repo — not on `main`, and not in a separate GitHub fork. Integrate via PR to `main` when complete. The design doc is already committed on this branch.
 
 ## 11. Out of scope (this revision)
 
@@ -178,7 +178,6 @@ All changes land in a **fork** of the repo (per user instruction). Before bulk c
 - **Preview-vs-GA drift:** several AI-103 features are recent (Foundry IQ agentic retrieval, Voice Live, Agent Framework 1.0). Pin to GA behavior where the exam emphasizes GA; flag preview features explicitly.
 - **Ch7 scenario:** the trail-camera premise is built on retired services; a replacement scenario must be chosen (plan decision).
 - **Lab-21 optional:** Lab 21 is optional in the official track — confirm whether Ch8 treats it as optional/extension.
-- **Fork mechanics:** unconfirmed (see §10).
 - **SDK churn:** sample-code APIs may shift between beta and GA; budget a verification pass close to publish.
 
 ## 13. Success criteria
@@ -189,4 +188,4 @@ All changes land in a **fork** of the repo (per user instruction). Before bulk c
 - AI-103 "Plan & manage" content (security, CI/CD, monitoring, RAI governance) present across Ch1–2 + capstone.
 - Cert section, README, index, nav, and key terms reflect AI-103.
 - Graphics manifest updated; replaced/new figures generated in consistent style.
-- All work isolated in the fork; Antora site builds cleanly.
+- All work isolated on the `ai-103-realignment` branch; Antora site builds cleanly.
