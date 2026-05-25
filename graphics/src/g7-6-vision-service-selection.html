@@ -4,131 +4,242 @@
 <meta charset="utf-8">
 <link rel="stylesheet" href="style.css">
 <style>
-.diamond{width:300px;height:130px;background:var(--amber-bg);border:3px solid var(--amber);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#92400e;text-align:center;transform:skewX(-6deg);border-radius:12px;padding:12px 24px;line-height:1.3;}
-.diamond-inner{transform:skewX(6deg);}
-.decision-node{background:var(--blue-bg);border:3px solid var(--blue);border-radius:16px;padding:22px 28px;font-size:28px;font-weight:600;color:var(--blue);text-align:center;}
-.result-node{border-radius:16px;padding:24px 30px;font-size:30px;font-weight:700;text-align:center;}
-.yes-label{font-size:24px;font-weight:700;color:var(--green);}
-.no-label{font-size:24px;font-weight:700;color:var(--muted);}
-.flow-line{background:var(--line);border-radius:3px;}
+/* ── Layout shell ───────────────────────────────────────────── */
+.ladder{
+  display:flex;
+  flex-direction:column;
+  gap:0;
+  flex:1;
+}
+
+/* Each decision row: question box + connector + result box */
+.decision-row{
+  display:flex;
+  align-items:center;
+  gap:0;
+}
+
+/* Question (amber) box — left column */
+.q-box{
+  background:var(--amber-bg);
+  border:4px solid var(--amber);
+  border-radius:20px;
+  padding:28px 32px;
+  font-size:32px;
+  font-weight:600;
+  color:#78350f;
+  line-height:1.3;
+  width:640px;
+  flex-shrink:0;
+}
+.q-box em{ color:#92400e; font-style:italic; }
+
+/* YES → connector */
+.yes-connector{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  width:130px;
+  flex-shrink:0;
+  gap:6px;
+}
+.yes-label{
+  font-size:26px;
+  font-weight:700;
+  color:var(--green);
+  white-space:nowrap;
+}
+.h-line{
+  height:5px;
+  background:var(--line);
+  width:100%;
+  border-radius:3px;
+  position:relative;
+}
+.h-line::after{
+  content:"";
+  position:absolute;
+  right:-2px;
+  top:-9px;
+  border-left:22px solid var(--line);
+  border-top:12px solid transparent;
+  border-bottom:12px solid transparent;
+}
+
+/* Result (capability) box — right column */
+.r-box{
+  flex:1;
+  border-radius:20px;
+  padding:28px 32px;
+  font-size:32px;
+  font-weight:700;
+  line-height:1.3;
+}
+.r-box .r-sub{
+  font-size:26px;
+  font-weight:400;
+  color:var(--muted);
+  margin-top:8px;
+}
+.r-box.blue { background:var(--blue-bg); border:4px solid var(--blue); color:var(--blue); }
+.r-box.green{ background:var(--green-bg);border:4px solid var(--green);color:var(--green);}
+.r-box.teal { background:var(--teal-bg); border:4px solid var(--teal); color:var(--teal); }
+
+/* NO ↓ spacer between rows */
+.no-spacer{
+  display:flex;
+  align-items:flex-start;
+  gap:0;
+  margin:0;
+}
+.no-left{
+  width:640px;
+  flex-shrink:0;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  padding:6px 0;
+}
+.v-line{
+  width:5px;
+  height:44px;
+  background:var(--line);
+  border-radius:3px;
+}
+.no-label{
+  font-size:24px;
+  font-weight:700;
+  color:var(--muted);
+  margin-top:4px;
+}
+.no-right{
+  flex:1;
+  width:130px;  /* spacer matching yes-connector */
+}
+
+/* Responsible AI box — full-width footer panel */
+.rai-box{
+  background:var(--purple-bg);
+  border:4px solid var(--purple);
+  border-radius:20px;
+  padding:28px 40px;
+  display:flex;
+  align-items:flex-start;
+  gap:48px;
+}
+.rai-title{
+  font-size:32px;
+  font-weight:700;
+  color:var(--purple);
+  white-space:nowrap;
+  margin-right:8px;
+}
+.rai-bullets{
+  font-size:28px;
+  color:var(--muted);
+  margin:0;
+  padding-left:24px;
+  line-height:1.7;
+}
+.rai-italic{
+  font-size:25px;
+  color:var(--purple);
+  font-style:italic;
+  margin-top:8px;
+  white-space:nowrap;
+}
 </style>
 </head>
 <body>
 <div id="fig">
   <h1 class="fig-title">Choosing a Vision Capability</h1>
-  <p class="fig-sub">Decision flow — pick the right tool before writing code</p>
+  <p class="fig-sub">Pick the capability first, then layer Responsible AI on top.</p>
 
-  <div style="display:grid;grid-template-columns:40px 380px 60px 380px 60px 380px;grid-template-rows:auto 40px auto 40px auto 40px auto;gap:0;align-items:center;justify-items:center;max-width:1800px;margin:20px auto 0;">
+  <!-- Decision ladder -->
+  <div class="ladder">
 
-    <!-- Row 1: First diamond -->
-    <div></div>
-    <div class="diamond"><div class="diamond-inner">Need to <em>create or edit</em> an image?</div></div>
-    <div></div>
-    <div></div>
-    <div></div>
-    <div></div>
-
-    <!-- Row 2: Yes right / No down -->
-    <div></div>
-    <div style="display:flex;align-items:center;justify-content:flex-end;width:100%;gap:12px;padding-right:0;">
-      <span class="yes-label">YES →</span>
-    </div>
-    <div class="flow-line" style="width:60px;height:4px;"></div>
-    <div class="result-node" style="background:var(--blue-bg);border:3px solid var(--blue);color:var(--blue);width:100%;">
-      Image Generation &amp; Editing<br><span style="font-size:24px;font-weight:400;color:var(--muted);">DALL-E / Designer</span>
-    </div>
-    <div></div>
-    <div></div>
-
-    <!-- Row 3: No down arrow + second diamond -->
-    <div style="font-size:24px;font-weight:700;color:var(--muted);">NO ↓</div>
-    <div></div>
-    <div></div>
-    <div></div>
-    <div></div>
-    <div></div>
-
-    <!-- Row 4: arrow -->
-    <div></div>
-    <div class="flow-line" style="width:4px;height:40px;"></div>
-    <div></div>
-    <div></div>
-    <div></div>
-    <div></div>
-
-    <!-- ─── Second question row ─── -->
-    <!-- Actually let me redo this as absolute-positioned for cleaner layout -->
-  </div>
-
-  <!-- Cleaner approach: use absolute positioning within a relative container -->
-  <div style="position:relative;width:100%;height:780px;margin-top:-680px;">
-
-    <!-- Q1: Create or edit? -->
-    <div style="position:absolute;left:80px;top:0;">
-      <div class="diamond" style="width:350px;"><div class="diamond-inner">Need to <em>create or edit</em> an image?</div></div>
-    </div>
-
-    <!-- YES → right → Image Generation -->
-    <div style="position:absolute;left:440px;top:40px;font-size:24px;font-weight:700;color:var(--green);">YES →</div>
-    <div class="flow-line" style="position:absolute;left:510px;top:60px;width:80px;height:4px;"></div>
-    <div style="position:absolute;left:595px;top:20px;">
-      <div class="result-node" style="background:var(--blue-bg);border:3px solid var(--blue);color:var(--blue);width:340px;">
-        Image Generation<br>&amp; Editing<br><span style="font-size:24px;font-weight:400;color:var(--muted);">DALL-E / Designer</span>
+    <!-- ── Row 1 ── -->
+    <div class="decision-row">
+      <div class="q-box">Need to <em>create or edit</em> an image?</div>
+      <div class="yes-connector">
+        <div class="yes-label">YES →</div>
+        <div class="h-line"></div>
+      </div>
+      <div class="r-box blue">
+        Image Generation &amp; Editing
+        <div class="r-sub">generate from prompts; inpaint / mask edits</div>
       </div>
     </div>
 
-    <!-- NO ↓ -->
-    <div style="position:absolute;left:200px;top:130px;font-size:24px;font-weight:700;color:var(--muted);">NO ↓</div>
-    <div class="flow-line" style="position:absolute;left:210px;top:160px;width:4px;height:50px;"></div>
-
-    <!-- Q2: Conversational/flexible? -->
-    <div style="position:absolute;left:60px;top:220px;">
-      <div class="diamond" style="width:390px;"><div class="diamond-inner">Need a <em>conversational / flexible</em> answer about an image?</div></div>
+    <!-- NO ↓ gap 1 -->
+    <div class="no-spacer">
+      <div class="no-left">
+        <div class="v-line"></div>
+        <div class="no-label">NO ↓</div>
+        <div class="v-line"></div>
+      </div>
+      <div class="no-right"></div>
     </div>
 
-    <!-- YES → right → Multimodal Understanding -->
-    <div style="position:absolute;left:460px;top:260px;font-size:24px;font-weight:700;color:var(--green);">YES →</div>
-    <div class="flow-line" style="position:absolute;left:530px;top:278px;width:70px;height:4px;"></div>
-    <div style="position:absolute;left:605px;top:230px;">
-      <div class="result-node" style="background:var(--teal-bg);border:3px solid var(--teal);color:var(--teal);width:360px;">
-        Multimodal Understanding<br><span style="font-size:24px;font-weight:400;color:var(--muted);">(vision chat / VQA)</span>
+    <!-- ── Row 2 ── -->
+    <div class="decision-row">
+      <div class="q-box">Need a <em>conversational / flexible</em> answer about an image?</div>
+      <div class="yes-connector">
+        <div class="yes-label">YES →</div>
+        <div class="h-line"></div>
+      </div>
+      <div class="r-box green">
+        Multimodal Understanding
+        <div class="r-sub">vision chat · visual Q&amp;A · alt-text</div>
       </div>
     </div>
 
-    <!-- NO ↓ -->
-    <div style="position:absolute;left:200px;top:350px;font-size:24px;font-weight:700;color:var(--muted);">NO ↓</div>
-    <div class="flow-line" style="position:absolute;left:210px;top:380px;width:4px;height:50px;"></div>
-
-    <!-- Q3: Structured data at scale? -->
-    <div style="position:absolute;left:40px;top:440px;">
-      <div class="diamond" style="width:420px;"><div class="diamond-inner">Need <em>structured data at scale</em> from images / video / docs?</div></div>
+    <!-- NO ↓ gap 2 -->
+    <div class="no-spacer">
+      <div class="no-left">
+        <div class="v-line"></div>
+        <div class="no-label">NO ↓</div>
+        <div class="v-line"></div>
+      </div>
+      <div class="no-right"></div>
     </div>
 
-    <!-- YES → right → Content Understanding -->
-    <div style="position:absolute;left:470px;top:480px;font-size:24px;font-weight:700;color:var(--green);">YES →</div>
-    <div class="flow-line" style="position:absolute;left:540px;top:498px;width:70px;height:4px;"></div>
-    <div style="position:absolute;left:615px;top:450px;">
-      <div class="result-node" style="background:var(--teal-bg);border:3px solid var(--teal);color:var(--teal);width:360px;">
-        Content Understanding<br><span style="font-size:24px;font-weight:400;color:var(--muted);">extraction at scale</span>
+    <!-- ── Row 3 ── -->
+    <div class="decision-row">
+      <div class="q-box">Need <em>structured data at scale</em> from images&nbsp;/ video&nbsp;/ documents?</div>
+      <div class="yes-connector">
+        <div class="yes-label">YES →</div>
+        <div class="h-line"></div>
+      </div>
+      <div class="r-box teal">
+        Content Understanding
+        <div class="r-sub">fields · markdown · JSON, at scale</div>
       </div>
     </div>
 
-    <!-- Responsible AI side note -->
-    <div style="position:absolute;right:0;top:0;width:480px;">
-      <div class="box" style="background:#fff8e6;border:3px solid var(--amber);padding:32px 36px;">
-        <div style="font-size:30px;font-weight:700;color:#92400e;margin-bottom:16px;">Always apply the<br>Responsible AI layer</div>
-        <ul style="font-size:26px;color:var(--muted);margin:0;padding-left:20px;line-height:1.7;">
-          <li>Content filters &amp; policy</li>
-          <li>Injection defense</li>
-          <li>Brand &amp; safety compliance</li>
-        </ul>
-        <div style="margin-top:16px;font-size:24px;color:var(--muted);font-style:italic;">applies to ALL paths</div>
+    <!-- Spacer before footer -->
+    <div style="height:36px;"></div>
+
+    <!-- ── Responsible AI footer ── -->
+    <div class="rai-box">
+      <div>
+        <div class="rai-title">Responsible AI layer</div>
+        <div class="rai-italic">applies to ALL paths</div>
       </div>
+      <ul class="rai-bullets">
+        <li>Content filters &amp; policy</li>
+        <li>Indirect-prompt-injection defense</li>
+        <li>Brand &amp; safety compliance</li>
+      </ul>
     </div>
 
-  </div>
+    <!-- Spacer before note -->
+    <div style="height:32px;"></div>
 
-  <p class="note" style="margin-top:20px;">Select the right capability first, then layer Responsible AI controls on top — every time.</p>
+    <p class="note" style="margin:0;">Select the right capability first, then layer Responsible AI controls on top — every time.</p>
+
+  </div><!-- /ladder -->
 </div>
 </body>
 </html>
