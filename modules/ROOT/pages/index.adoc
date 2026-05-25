@@ -44,7 +44,7 @@ Each chapter follows a consistent structure: an introduction with a real-world s
 | Vision-enabled chat completions, image and video generation and editing, multimodal understanding, and selecting the right vision service for a given task.
 
 | xref:ch08-document-intelligence-and-knowledge-mining.adoc[8. Multimodal Information Extraction & Capstone]
-| Content Understanding extraction pipelines, multimodal RAG combining documents and images, Azure AI Search knowledge mining, and the capstone design project integrating services from across the course.
+| Content Understanding multimodal extraction, grounded representations (markdown/JSON) feeding RAG and Foundry IQ, multi-service architecture design, and the agentic-multimodal capstone.
 
 |===
 
