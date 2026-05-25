@@ -8,16 +8,16 @@ An open educational resource (OER) textbook for **CSC 214 — Artificial Intelli
 
 This textbook supports an 8-week course aligned to the Microsoft **AI-103: Azure AI App and Agent Developer Associate** certification. Each chapter maps 1:1 to a course week and covers Azure AI development through practical, scenario-driven instruction — from foundational model deployment through multi-agent orchestration, specialized AI services, and a multimodal capstone project.
 
-| Chapter | Topic | Key Services |
+| Chapter | Topic | Key Services & Technologies |
 |---|---|---|
-| 1. Foundations: Models, Deployment & Evaluation | Model catalog, deployment, chat completion, evaluation, secure project setup | Microsoft Foundry, model catalog |
-| 2. Grounding with RAG & Responsible AI | RAG/grounding on your own data, content safety, responsible-AI governance | RAG, content filters |
-| 3. Building AI Agents: Tools & Functions | Agent loop, building agents in portal + VS Code, custom function tools | Foundry Agent Service |
-| 4. Agent Knowledge & Protocols: MCP & Foundry IQ | Model Context Protocol tools, agentic retrieval knowledge bases | MCP, Foundry IQ |
+| 1. Foundations: Models, Deployment & Evaluation | Model catalog, deployment, chat completion, evaluation, secure project setup | Microsoft Foundry, model catalog, managed identity |
+| 2. Grounding with RAG & Responsible AI | RAG/grounding on your own data, content safety, responsible-AI governance | RAG, Content Safety, evaluators |
+| 3. Building AI Agents: Tools & Functions | Agent loop, building agents in portal + VS Code, custom function tools | Foundry Agent Service, function tools |
+| 4. Agent Knowledge & Protocols: MCP & Foundry IQ | Model Context Protocol tools, agentic retrieval knowledge bases | Model Context Protocol, Foundry IQ |
 | 5. Agent Frameworks & Multi-Agent Orchestration | Microsoft Agent Framework, multi-agent orchestration patterns, capstone scoping | Microsoft Agent Framework |
-| 6. Text Analysis & Conversational Speech Agents | Generative text analysis, text-analysis agent, speech, real-time voice agents | Foundry Tools, Speech, Voice Live |
-| 7. Vision: Multimodal Understanding & Image Generation | Vision chat, image/video generation & editing, multimodal understanding | Content Understanding, image generation |
-| 8. Multimodal Information Extraction & Capstone | Content Understanding extraction pipelines, multimodal RAG, capstone | Content Understanding |
+| 6. Text Analysis & Conversational Speech Agents | Generative text analysis, text-analysis agent, speech, real-time voice agents | Foundry Tools, Azure AI Speech, Voice Live |
+| 7. Vision: Multimodal Understanding & Image Generation | Vision chat, image/video generation & editing, multimodal understanding | Content Understanding, image generation models |
+| 8. Multimodal Information Extraction & Capstone | Content Understanding extraction pipelines, multimodal RAG, capstone | Content Understanding, Azure AI Search |
 
 ## Format
 

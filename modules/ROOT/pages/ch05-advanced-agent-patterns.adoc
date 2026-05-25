@@ -74,13 +74,14 @@ The Agent Framework is evolving rapidly toward and past its 1.0 release. The exa
 [source,python]
 ----
 # Illustrative only — confirm exact symbols against your installed SDK version.
+import asyncio
 import json
 from agent_framework import ChatAgent  # <1>
 from agent_framework.azure import AzureAIChatClient
 from azure.identity import DefaultAzureCredential
 
 
-# 1. Define tools as plain Python functions with clear docstrings. <2>
+# Define tools as plain Python functions with clear docstrings. <2>
 def get_stock_price(ticker: str) -> str:
     """Retrieves the current stock price for a given ticker symbol."""
     prices = {"AAPL": 245.12, "MSFT": 478.55, "GOOGL": 192.30}
@@ -100,7 +101,7 @@ def search_regulatory_filings(company_name: str, filing_type: str = "10-K") -> s
     })
 
 
-# 2. Construct the agent: a model client, instructions, and tools. <3>
+# Construct the agent: a model client, instructions, and tools. <3>
 agent = ChatAgent(
     chat_client=AzureAIChatClient(credential=DefaultAzureCredential()),
     name="Financial Research Assistant",
@@ -113,17 +114,21 @@ agent = ChatAgent(
 )
 
 
-# 3. Run the agent — the framework handles the entire reasoning-action loop. <4>
+# Run the agent — the framework handles the entire reasoning-action loop. <4>
 async def main():
     response = await agent.run(
         "What is Apple's current stock price, and do they have any recent 10-K filings?"
     )
     print(response.text)
+
+
+asyncio.run(main())  # <5>
 ----
 <1> Exact import paths and class names differ across SDK versions; verify against the docs for the version you install.
 <2> The framework adapts ordinary typed functions with docstrings into tool definitions -- you do not hand-write JSON schemas as you did in xref:ch03-evaluation-and-agents-intro.adoc[Chapter 3].
 <3> You declare the agent's model client, instructions, and tools; the framework wires up the rest.
 <4> A single `run` call executes the full loop: send the message, let the model propose tool calls, execute them, feed results back, and repeat until the model returns a final answer.
+<5> `asyncio.run` is the entry point that drives the async agent to completion.
 
 Compare this with the Chapter 3 implementation. There, you wrote a `while` loop that checked `finish_reason`, parsed `tool_calls`, dispatched to handler functions, appended tool results to the message list, and called the model again. Here, a single `run` call does all of that internally. You define the tools, send a message, and get a response.
 
