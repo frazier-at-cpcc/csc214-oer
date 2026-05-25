@@ -1,12 +1,13 @@
-= Chapter 2: RAG & Content Safety
+= Chapter 2: Grounding with RAG & Responsible AI
 
 == Learning Objectives
 
 By the end of this chapter, you will be able to:
 
-. Describe the architecture of a RAG pipeline including indexing, retrieval, and grounding stages.
+. Describe the architecture of a RAG pipeline including indexing, retrieval, and grounding stages, and frame it as Microsoft Foundry's "use your own data" grounding flow.
 . Configure content safety filters at appropriate severity thresholds and justify threshold choices.
 . Evaluate the impact of grounding data on model response quality compared to ungrounded responses.
+. Apply responsible-AI practices -- safety filters, evaluators and safety evaluations, and auditing through trace logging and provenance metadata -- to a grounded generative application.
 
 == 2.1 Introduction: When the Model Doesn't Know Enough
 
@@ -18,14 +19,14 @@ This is not a bug. It is the expected behavior of a general-purpose language mod
 
 In xref:ch01-generative-ai-foundations.adoc[Chapter 1], you learned how to deploy models and configure parameters like temperature and system messages to shape model behavior. Those tools give you control over _how_ the model responds, but they cannot solve a more fundamental problem: the model does not _know_ things it was never trained on, and its training data has a cutoff date. No amount of temperature tuning will make a general-purpose model accurately report whether your library holds a specific edition of a specific book.
 
-This chapter introduces two critical capabilities that address this limitation. First, you will learn about **Retrieval-Augmented Generation (RAG)** -- an architecture that grounds model responses in your own data by retrieving relevant information and injecting it into the prompt before the model generates a response. Second, you will learn about **content safety filtering** -- the mechanisms that prevent your AI application from producing or accepting harmful content, even when grounded in external data.
+This chapter introduces two critical capabilities that address this limitation, then frames both inside the broader discipline of **responsible AI**. First, you will learn about **Retrieval-Augmented Generation (RAG)** -- an architecture that grounds model responses in your own data by retrieving relevant information and injecting it into the prompt before the model generates a response. In Microsoft Foundry, this is exactly the "use your own data" grounding flow you will build in your lab: you connect a data source, Foundry indexes it, and the deployed model retrieves from that index to answer questions. Second, you will learn about **content safety filtering** -- the mechanisms that prevent your AI application from producing or accepting harmful content, even when grounded in external data. Finally, you will see how content safety is one part of a larger responsible-AI practice that also includes **evaluators and safety evaluations**, and **auditing through trace logging and provenance metadata**.
 
-Together, these capabilities transform a general-purpose language model into a domain-specific, production-ready assistant. Here is the roadmap:
+Together, these capabilities transform a general-purpose language model into a domain-specific, production-ready, and governable assistant. Here is the roadmap:
 
-* **Section 2.2** introduces the RAG architecture and walks through each stage of the pipeline.
+* **Section 2.2** introduces the RAG architecture and walks through each stage of the pipeline, framed as the Microsoft Foundry "use your own data" grounding flow.
 * **Section 2.3** evaluates the measurable differences between grounded and ungrounded responses.
-* **Section 2.4** covers content safety filtering, including filter categories, severity thresholds, and configuration.
-* **Section 2.5** shows how RAG and content safety work together in a complete pipeline.
+* **Section 2.4** covers responsible AI: content safety filtering and severity thresholds, plus evaluators, safety evaluations, and auditing through trace logging and provenance metadata.
+* **Section 2.5** shows how RAG, content safety, and responsible-AI governance work together in a complete pipeline.
 * **Sections 2.6 and 2.7** connect the chapter to your hands-on labs and the written assessment.
 
 == 2.2 Retrieval-Augmented Generation Architecture
@@ -33,6 +34,8 @@ Together, these capabilities transform a general-purpose language model into a d
 Retrieval-Augmented Generation, or **RAG**, is an architecture pattern that supplements a language model's knowledge with external data at inference time. Instead of relying solely on what the model learned during training, a RAG pipeline fetches relevant documents from a data source and includes them in the prompt so the model can base its response on actual information.
 
 The concept is straightforward: if the model does not know the answer, give it the answer -- or at least the source material -- as part of the prompt. The engineering challenge lies in doing this efficiently, accurately, and at scale.
+
+In Microsoft Foundry, RAG is surfaced as the **"use your own data"** grounding flow. Rather than building each stage by hand, you point Foundry at a data source (for example, files in blob storage or an existing Azure AI Search index), Foundry creates and populates a **search index** from that data, and your deployed chat model is configured to retrieve from that index automatically on every request. The four stages below -- index, retrieve, ground, generate -- map directly onto what Foundry does behind that flow. This is the pipeline you will stand up in **Lab 4 -- "Create a generative AI app that uses your own data."** Understanding the stages individually lets you reason about quality, cost, and failure modes even when Foundry handles the plumbing for you.
 
 === 2.2.1 The RAG Pipeline at a Glance
 
@@ -172,9 +175,18 @@ Several techniques can mitigate the limitations described above:
 
 **Query transformation.** Rephrasing or expanding the user's query before retrieval can improve search results. Techniques include generating multiple query variations, extracting key terms, or using the model itself to rewrite the query in a form that better matches the indexed content.
 
-== 2.4 Content Safety Filtering
+== 2.4 Responsible AI: Content Safety, Evaluation, and Auditing
 
-Grounding a model in your own data improves accuracy, but it does not guarantee that the model's inputs or outputs are safe, appropriate, or aligned with your organization's policies. **Content safety filtering** provides a second layer of protection that examines both incoming prompts and outgoing responses for harmful content.
+Grounding a model in your own data improves accuracy, but it does not guarantee that the model's inputs or outputs are safe, appropriate, or aligned with your organization's policies. Producing a trustworthy application is the job of **responsible AI** -- the practice of building, measuring, and governing AI systems so they behave safely and accountably in production. The AI-103 "Plan and manage" domain treats this as a first-class responsibility: you configure safety filters and guardrails, you measure quality and safety with **evaluators**, and you make behavior **auditable** through trace logging and provenance metadata.
+
+This section covers three pillars of responsible AI as they apply to a grounded application:
+
+* **Content safety filtering** (sections 2.4.1--2.4.6) -- automated, configurable detection and blocking of harmful content on both inputs and outputs.
+* **Evaluators and safety evaluations** (section 2.4.7) -- measuring groundedness and safety so quality is a number you can track, not a hunch.
+* **Auditing: trace logging and provenance** (section 2.4.8) -- recording what the system retrieved, generated, and filtered so decisions can be reviewed and defended.
+
+// GRAPHIC TODO: responsible-ai-governance-layers
+image::ch02/g2-6-responsible-ai-layers.png[Responsible AI Governance Layers]
 
 === 2.4.1 Why Content Safety Matters in Production AI Systems
 
@@ -328,7 +340,39 @@ if prompt_filter:
 
 Content filter thresholds are configured at the deployment level through the Microsoft Foundry portal or the Azure Management API. When you create or update a deployment, you specify the severity threshold for each harm category. The chat completion API then applies those thresholds automatically to every request and response.
 
-== 2.5 Putting It Together: RAG with Content Safety
+=== 2.4.7 Evaluators and Safety Evaluations
+
+Filters and guardrails decide what a single request is allowed to do. They do not, by themselves, tell you _how well_ your application performs across many requests. For that you need **evaluators** -- automated tests that score model outputs against a metric so quality and safety become numbers you can track over time rather than impressions.
+
+In Microsoft Foundry, evaluations run a set of inputs through your application and apply one or more evaluators to each output. Evaluators generally fall into two groups that matter for a grounded, responsible application:
+
+**Quality and groundedness evaluators.** These measure whether a response is supported by the retrieved context, relevant to the question, and coherent. The **groundedness** evaluator is the most important one for a RAG system: it compares each claim in the response against the retrieved chunks and scores how well the response is anchored in that source material. A low groundedness score is a direct signal that the model is hallucinating past its grounding data -- the very problem RAG was meant to solve. Related evaluators include **relevance** (did retrieval surface the right context?) and **coherence** (is the answer well-formed?).
+
+**Safety evaluations.** These probe whether the application can be made to produce harmful content -- the same harm categories the content filters target (hate and fairness, violence, sexual, self-harm), plus risks like jailbreak susceptibility and ungrounded or fabricated claims. A safety evaluation typically runs a battery of adversarial and edge-case prompts and reports, per category, how often the application produced content above a severity threshold. Where a content filter blocks one request in the moment, a safety evaluation tells you the _rate_ at which your configuration lets harmful content through across a representative test set.
+
+The two groups are complementary. Quality evaluators answer "is the application accurate and grounded?"; safety evaluations answer "is the application hard to misuse?" Both produce metrics you can compare before and after a change -- a new model version, a different chunking strategy, a stricter filter threshold -- so you can tell whether the change actually improved the system or merely moved the problem.
+
+[TIP]
+====
+Treat evaluation as a regression test for your AI application. Capture a fixed set of representative and adversarial prompts, run your groundedness and safety evaluators against them, and record the scores. When you change the model, the index, or the filter thresholds, re-run the same evaluation. If groundedness drops or unsafe-output rates rise, you have caught a regression before your users do.
+====
+
+=== 2.4.8 Auditing: Trace Logging and Provenance
+
+Responsible AI also requires that decisions be **auditable** -- that you can reconstruct, after the fact, what the system did and why. Two mechanisms make a grounded application auditable.
+
+**Trace logging** records the steps of each request as it moves through the pipeline: the user's prompt, the input filter result, the chunks retrieved from the index, the grounded prompt sent to the model, the generated response, and the output filter result. A trace turns a single chat turn into an inspectable record. When a user reports a bad answer, the trace tells you whether the failure was a retrieval miss (the right chunk was never fetched), a grounding gap (the chunk was fetched but the model ignored it), or a filtering decision (the response was blocked or rewritten). Foundry's tracing captures these steps so you can review them in the portal rather than reconstructing them from scattered logs.
+
+**Provenance metadata** records _where_ information came from. Each retrieved chunk should carry metadata identifying its source document, location, and version, and that metadata should flow through to the response so claims can be cited and traced back to their origin. Provenance is what makes a grounded answer _defensible_: instead of "the model said the ISBN is...", you can show "this claim came from catalog record X, indexed on date Y." Provenance metadata also powers metadata filtering during retrieval (section 2.3.4) and the source citations users see in the response.
+
+Together, trace logging and provenance support the governance expectations of a production AI system: incident review, compliance reporting, and the ability to demonstrate that the application behaved as designed. In regulated or high-stakes settings, the ability to answer "why did the system say this, and what was it based on?" is not optional -- it is a requirement.
+
+[NOTE]
+====
+Auditing and evaluation reinforce each other. Trace logs are a natural source of evaluation data: the prompts, retrieved context, and responses captured in production become the test set you replay through your groundedness and safety evaluators. Provenance metadata lets a groundedness evaluator check a claim against the _specific_ source it was drawn from, not just the bundle of retrieved chunks.
+====
+
+== 2.5 Putting It Together: RAG with Content Safety and Responsible AI
 
 === 2.5.1 Where Content Filters Sit in the RAG Pipeline
 
@@ -352,25 +396,29 @@ Content safety filters are one component of a broader **layered safety** approac
 
 No single layer is sufficient on its own. Content filters can be bypassed by novel attacks; system messages can be ignored by the model; grounding data might not cover every possible query. Together, these three layers create defense in depth -- each layer catches failures that the others might miss.
 
+These three layers act on each individual request. Responsible AI adds two layers that act _across_ requests and _over time_: **evaluation** measures groundedness and safety against a representative test set so you know how the whole system performs, and **auditing** (trace logging plus provenance metadata) records what happened so any single decision can be reviewed and defended. Per-request guardrails keep a given response safe; evaluation and auditing keep the deployed system trustworthy and governable as it evolves.
+
 == 2.6 Hands-On Connections
 
 The concepts in this chapter are brought to life in two lab activities. Here is what to watch for in each.
 
-=== Lab 03: Create a Generative AI App That Uses Your Own Data
+=== Lab 4: Create a Generative AI App That Uses Your Own Data
 
-In Lab 03, you will send the same queries to a model with and without grounding data and compare the responses. As you work through the lab, pay attention to the following:
+In Lab 4, you will use Microsoft Foundry's "use your own data" flow to ground a chat model in a data source, then compare its responses to the same model with no grounding. This is the RAG pipeline from section 2.2, stood up end to end. As you work through the lab, pay attention to the following:
 
+* **The grounding flow itself.** Watch how Foundry turns your data source into a search index and wires it into the deployment. Note where the index, retrieval, and grounding stages from this chapter show up in the portal experience.
 * **Factual accuracy.** Compare specific claims in the grounded and ungrounded responses. Are ISBNs correct? Are publication dates accurate? Are author names spelled correctly? The grounded responses should demonstrate measurably higher accuracy for domain-specific details.
 * **Hallucination patterns.** Notice where the ungrounded model invents details. Does it fabricate plausible-sounding but incorrect information? Does it express the same confidence in fabricated details as in accurate ones? These observations are important evidence for your written assessment.
-* **Response style.** Observe whether grounded responses differ in tone, length, or structure from ungrounded responses. Does the model cite its sources when grounding data is provided? Does it hedge more or less?
+* **Citations and provenance.** Observe whether grounded responses cite their sources. Those citations are provenance metadata in action -- each one ties a claim back to a specific indexed chunk, which is what makes the answer auditable.
 
-=== Lab 04: Apply Content Filters to Prevent the Output of Harmful Content
+=== Lab 5: Apply Content Filters to Prevent the Output of Harmful Content
 
-In Lab 04, you will configure content safety filters at different severity thresholds and observe how the filters respond to various inputs. Key observations:
+In Lab 5, you will configure content safety filters at different severity thresholds and observe how the filters respond to various inputs. Key observations:
 
 * **Threshold sensitivity.** Test the same prompt at different threshold settings and note when it gets blocked versus allowed. Pay particular attention to academic content that discusses sensitive topics in a legitimate educational context.
 * **False positive identification.** Look for cases where the filter blocks content that you believe should be allowed for a university context. These observations directly inform your threshold justification in the written assessment.
 * **Category independence.** Notice that each harm category is evaluated independently. A prompt might pass the violence filter but be flagged by the hate filter, or vice versa. This independence is important for understanding why each category needs its own threshold.
+* **Filtering as one responsible-AI layer.** Keep in mind that the per-request blocking you configure here is one pillar of responsible AI. A safety evaluation (section 2.4.7) would tell you the _rate_ at which a given threshold lets harmful content through across many prompts -- a useful lens as you decide where to set each threshold.
 
 == 2.7 Assessment Preparation
 
@@ -381,7 +429,7 @@ This week's written assessment asks you to produce an 800-1,200 word analysis in
 Part A asks you to design a RAG pipeline for a university library context and compare grounded versus ungrounded responses. To prepare:
 
 * **Walk through the pipeline stages.** Your analysis should demonstrate understanding of all four stages -- index, retrieve, ground, generate -- by describing what happens at each stage in the library scenario. Be specific: what documents would you index? How would you chunk them? What search approach would you use?
-* **Use evidence from Lab 03.** Reference specific observations from your lab work. What concrete differences did you observe between grounded and ungrounded responses? Describe specific examples rather than making general claims.
+* **Use evidence from Lab 4.** Reference specific observations from your lab work. What concrete differences did you observe between grounded and ungrounded responses? Describe specific examples rather than making general claims.
 * **Address limitations.** Strong analyses do not just describe what RAG does well -- they also acknowledge its limitations (context window constraints, retrieval failures, stale data) and how you would mitigate them in the library context.
 
 === Part B: Content Safety Filter Justification
@@ -426,7 +474,15 @@ prompt shield:: An input filtering mechanism that detects adversarial prompts de
 
 re-ranking:: A post-retrieval step in which a secondary model scores and reorders retrieved chunks based on their relevance to the query, improving retrieval precision.
 
-groundedness:: A measure of how well a model's generated response is supported by the retrieved context provided to it. A highly grounded response makes only claims that are present in the source material.
+groundedness:: A measure of how well a model's generated response is supported by the retrieved context provided to it. A highly grounded response makes only claims that are present in the source material. In Microsoft Foundry, groundedness is also a built-in evaluator used to score RAG responses.
+
+guardrail:: A control that constrains what an AI application is allowed to do on a given request -- including content safety filters, jailbreak and prompt-injection defenses, and system-message instructions. Guardrails act per request, as opposed to evaluation and auditing, which act across requests.
+
+evaluator:: An automated test that scores model outputs against a metric -- such as groundedness, relevance, coherence, or a safety category -- so application quality and safety can be measured and tracked over time. A safety evaluation runs a battery of adversarial prompts through one or more evaluators to report the rate at which an application produces harmful content.
+
+trace logging:: The recording of each step a request passes through -- prompt, input filter result, retrieved chunks, grounded prompt, generated response, and output filter result -- so a single interaction can be inspected and audited after the fact.
+
+provenance:: Metadata recording the origin of information -- the source document, location, and version of each retrieved chunk -- carried through to the response so claims can be cited and traced back to their source. Provenance is what makes a grounded answer defensible and auditable.
 
 context window:: The maximum number of tokens a model can process in a single request, including input and output. In RAG pipelines, retrieved chunks consume context window space.
 
@@ -436,8 +492,8 @@ top-k:: A retrieval parameter that specifies the number of most-similar chunks t
 
 This chapter introduced two capabilities that transform a general-purpose language model into a domain-specific, production-ready system. Retrieval-Augmented Generation (RAG) addresses the fundamental limitation that language models cannot know information they were not trained on. By indexing your documents, retrieving relevant chunks at query time, and grounding the model's prompt in that retrieved context, you enable accurate, verifiable, and source-traceable responses that dramatically reduce hallucination.
 
-Content safety filtering addresses the equally fundamental reality that AI applications must prevent harmful content from reaching users. Azure AI Content Safety provides configurable filters across four harm categories -- hate, violence, sexual, and self-harm -- with severity thresholds that let you balance the tradeoff between over-blocking legitimate content and under-blocking harmful content. Additional mechanisms like jailbreak detection, prompt shields, and groundedness detection provide further protection.
+Content safety filtering is the first pillar of responsible AI: it addresses the equally fundamental reality that AI applications must prevent harmful content from reaching users. Azure AI Content Safety provides configurable filters across four harm categories -- hate, violence, sexual, and self-harm -- with severity thresholds that let you balance the tradeoff between over-blocking legitimate content and under-blocking harmful content. Additional mechanisms like jailbreak detection, prompt shields, and groundedness detection provide further protection. Beyond per-request filtering, responsible AI adds **evaluators and safety evaluations** to measure groundedness and safety across a representative test set, and **auditing through trace logging and provenance metadata** to make every decision reviewable and defensible.
 
-Together, RAG and content safety form a layered defense: grounding constrains what the model knows, content filters constrain what it says, and system message guardrails provide additional behavioral guidance. This defense-in-depth approach is the foundation of responsible AI deployment in production.
+Together, RAG and responsible AI form a layered defense that operates both per request and over time: grounding constrains what the model knows, content filters and system-message guardrails constrain what it says, evaluators measure how well it performs, and trace logging plus provenance make its behavior auditable. This defense-in-depth approach is the foundation of responsible AI deployment in production.
 
-In xref:ch03-evaluation-and-agents-intro.adoc[Chapter 3], you will learn how to formally evaluate your RAG pipeline using metrics like groundedness, relevance, and coherence, and you will begin exploring how language models can be extended from conversational assistants into autonomous agents that take actions on behalf of users.
+In xref:ch03-evaluation-and-agents-intro.adoc[Chapter 3, Building AI Agents: Tools & Functions], you will build on this grounded, governed foundation to extend language models from conversational assistants into agents that use tools and functions to take actions on behalf of users.
