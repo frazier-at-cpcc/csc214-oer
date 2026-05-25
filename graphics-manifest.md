@@ -2,6 +2,18 @@
 
 44 original graphics across 8 chapters + 9 new figures added during AI-103 realignment = 53 total figure slots.
 
+## AI-103 graphics generation — COMPLETE (2026-05-25)
+
+The figure set is fully built and the Antora site renders with **zero missing images**. Final state:
+
+- **15 figures produced** (9 new + 6 regenerated) — built via the hybrid pipeline below, all at 2752×1536.
+- **7 cross-chapter figures renumbered** into clean document-order numbering (kept original art).
+- **13 orphaned figures removed**; remaining "Survives" figures unchanged.
+
+Generation pipeline (reusable): HTML/CSS diagrams in `graphics/src/` (shared `graphics/src/style.css`) captured to PNG by `graphics/capture.mjs` (Playwright Chromium, 2752×1536); AI-generated base imagery for the vision figures lives in `graphics/assets/` (city scene, product shot, inpaint) and is composited inside HTML frames. To rebuild a figure: `node graphics/capture.mjs graphics/src/<name>.html modules/ROOT/images/<chNN>/<file>.png`.
+
+The per-figure dispositions below reflect the realignment; all "New"/"Regenerate" entries are now generated, all "Renumber" entries are done, and all "Orphaned" entries were removed from disk.
+
 ## Filename Convention
 
 - Path: `modules/ROOT/images/ch{NN}/g{N}-{M}-{kebab-case-description}.png`
